@@ -1,0 +1,765 @@
+{
+  "defaults": {
+    "duration_seconds": 300,
+    "width": 1280,
+    "height": 720,
+    "framerate": 24,
+    "gop": 48,
+    "sample_rate": 48000,
+    "channels": 2,
+    "source_video": "source_master.mov",
+    "source_audio": "source_audio.wav",
+    "source_subtitle": "source_sub.ass"
+  },
+
+  "video_variants": [
+    {
+      "name": "h264_mp4_baseline",
+      "title": "H.264 MP4 Baseline Profile",
+      "description": "H.264 baseline profile in MP4 with AAC stereo. Legacy-compatible playback baseline.",
+      "container": "mp4",
+      "video": {
+        "codec": "libx264",
+        "profile": "baseline",
+        "level": "3.1",
+        "pix_fmt": "yuv420p",
+        "bitrate": "1500k",
+        "preset": "medium"
+      },
+      "audio": { "codec": "aac", "bitrate": "128k", "channels": 2, "sample_rate": 48000 }
+    },
+    {
+      "name": "h264_mp4_high",
+      "title": "H.264 MP4 High Profile",
+      "description": "H.264 high profile 4.1 in MP4 with AAC stereo.",
+      "container": "mp4",
+      "video": {
+        "codec": "libx264",
+        "profile": "high",
+        "level": "4.1",
+        "pix_fmt": "yuv420p",
+        "bitrate": "5000k",
+        "preset": "medium"
+      },
+      "audio": { "codec": "aac", "bitrate": "192k", "channels": 2, "sample_rate": 48000 }
+    },
+    {
+      "name": "hevc_mp4_8bit",
+      "title": "HEVC MP4 Main 8-bit",
+      "description": "HEVC main profile 8-bit in MP4 with AAC stereo.",
+      "container": "mp4",
+      "video": {
+        "codec": "libx265",
+        "profile": "main",
+        "pix_fmt": "yuv420p",
+        "bitrate": "3000k",
+        "preset": "medium",
+        "tag": "hvc1"
+      },
+      "audio": { "codec": "aac", "bitrate": "192k", "channels": 2, "sample_rate": 48000 }
+    },
+    {
+      "name": "hevc_mp4_10bit_hdr10_bt2020",
+      "title": "HEVC MP4 10-bit HDR10 BT.2020",
+      "description": "HEVC main10 10-bit 1080p in MP4 with static HDR10 metadata, BT.2020 primaries, SMPTE ST 2084 (PQ) transfer, E-AC-3 5.1.",
+      "container": "mp4",
+      "width": 1920,
+      "height": 1080,
+      "video": {
+        "codec": "libx265",
+        "profile": "main10",
+        "pix_fmt": "yuv420p10le",
+        "bitrate": "8000k",
+        "preset": "medium",
+        "tag": "hvc1",
+        "hdr": {
+          "kind": "hdr10",
+          "color_primaries": "bt2020",
+          "color_trc": "smpte2084",
+          "colorspace": "bt2020nc",
+          "x265_params": "hdr10=1:repeat-headers=1:colorprim=bt2020:transfer=smpte2084:colormatrix=bt2020nc:master-display=G(13250,34500)B(7500,3000)R(34000,16000)WP(15635,16450)L(10000000,50):max-cll=1000,400"
+        }
+      },
+      "audio": { "codec": "eac3", "bitrate": "640k", "channels": 6, "sample_rate": 48000 }
+    },
+    {
+      "name": "hevc_mp4_10bit_hlg_bt2020",
+      "title": "HEVC MP4 10-bit HLG BT.2020",
+      "description": "HEVC main10 10-bit 1080p in MP4 with HLG (ARIB STD-B67) transfer, BT.2020, E-AC-3 5.1.",
+      "container": "mp4",
+      "width": 1920,
+      "height": 1080,
+      "video": {
+        "codec": "libx265",
+        "profile": "main10",
+        "pix_fmt": "yuv420p10le",
+        "bitrate": "8000k",
+        "preset": "medium",
+        "tag": "hvc1",
+        "hdr": {
+          "kind": "hlg",
+          "color_primaries": "bt2020",
+          "color_trc": "arib-std-b67",
+          "colorspace": "bt2020nc",
+          "x265_params": "colorprim=bt2020:transfer=arib-std-b67:colormatrix=bt2020nc"
+        }
+      },
+      "audio": { "codec": "eac3", "bitrate": "640k", "channels": 6, "sample_rate": 48000 }
+    },
+    {
+      "name": "av1_mkv_opus",
+      "title": "AV1 MKV with Opus",
+      "description": "AV1 video in Matroska with Opus stereo audio. SVT-AV1 encoder.",
+      "container": "mkv",
+      "video": { "codec": "libsvtav1", "pix_fmt": "yuv420p", "bitrate": "1500k", "preset": "10" },
+      "audio": { "codec": "libopus", "bitrate": "128k", "channels": 2, "sample_rate": 48000 }
+    },
+    {
+      "name": "vp9_webm_opus",
+      "title": "VP9 WebM with Opus",
+      "description": "VP9 video in WebM with Opus stereo audio.",
+      "container": "webm",
+      "video": { "codec": "libvpx-vp9", "pix_fmt": "yuv420p", "bitrate": "1500k", "row_mt": 1 },
+      "audio": { "codec": "libopus", "bitrate": "128k", "channels": 2, "sample_rate": 48000 }
+    },
+    {
+      "name": "h264_mkv_ac3_51",
+      "title": "H.264 MKV with AC3 5.1",
+      "description": "H.264 high profile in Matroska with AC-3 5.1 surround.",
+      "container": "mkv",
+      "video": { "codec": "libx264", "profile": "high", "pix_fmt": "yuv420p", "bitrate": "4000k", "preset": "medium" },
+      "audio": { "codec": "ac3", "bitrate": "448k", "channels": 6, "sample_rate": 48000 }
+    },
+    {
+      "name": "h264_ts_aac",
+      "title": "H.264 MPEG-TS with AAC",
+      "description": "H.264 main profile in MPEG-TS with AAC stereo. Broadcast-style container.",
+      "container": "ts",
+      "video": { "codec": "libx264", "profile": "main", "pix_fmt": "yuv420p", "bitrate": "4000k", "preset": "medium" },
+      "audio": { "codec": "aac", "bitrate": "192k", "channels": 2, "sample_rate": 48000 }
+    },
+    {
+      "name": "h264_mp4_mp3",
+      "title": "H.264 MP4 with MP3",
+      "description": "H.264 main profile in MP4 with MP3 stereo audio.",
+      "container": "mp4",
+      "video": { "codec": "libx264", "profile": "main", "pix_fmt": "yuv420p", "bitrate": "2500k", "preset": "medium" },
+      "audio": { "codec": "libmp3lame", "bitrate": "192k", "channels": 2, "sample_rate": 48000 }
+    },
+    {
+      "name": "h264_mkv_flac",
+      "title": "H.264 MKV with FLAC",
+      "description": "H.264 high profile in Matroska with FLAC lossless stereo.",
+      "container": "mkv",
+      "video": { "codec": "libx264", "profile": "high", "pix_fmt": "yuv420p", "bitrate": "3000k", "preset": "medium" },
+      "audio": { "codec": "flac", "channels": 2, "sample_rate": 48000 }
+    },
+    {
+      "name": "h264_mkv_pcm",
+      "title": "H.264 MKV with PCM",
+      "description": "H.264 high profile in Matroska with PCM 16-bit LE stereo.",
+      "container": "mkv",
+      "video": { "codec": "libx264", "profile": "high", "pix_fmt": "yuv420p", "bitrate": "3000k", "preset": "medium" },
+      "audio": { "codec": "pcm_s16le", "channels": 2, "sample_rate": 48000 }
+    },
+    {
+      "name": "h264_mp4_30fps",
+      "title": "H.264 MP4 30 fps (NTSC-style)",
+      "description": "H.264 high profile 30 fps in MP4 with AAC. Covers the 30/29.97 FPS branch.",
+      "container": "mp4",
+      "framerate": 30,
+      "video": { "codec": "libx264", "profile": "high", "pix_fmt": "yuv420p", "bitrate": "3000k", "preset": "medium" },
+      "audio": { "codec": "aac", "bitrate": "192k", "channels": 2, "sample_rate": 48000 }
+    },
+    {
+      "name": "h264_mp4_60fps",
+      "title": "H.264 MP4 60 fps (high frame rate)",
+      "description": "H.264 high profile 60 fps in MP4 with AAC. Covers HFR branch.",
+      "container": "mp4",
+      "framerate": 60,
+      "video": { "codec": "libx264", "profile": "high", "pix_fmt": "yuv420p", "bitrate": "6000k", "preset": "medium" },
+      "audio": { "codec": "aac", "bitrate": "192k", "channels": 2, "sample_rate": 48000 }
+    },
+    {
+      "name": "h264_mp4_4_3_sd",
+      "title": "H.264 MP4 4:3 SD",
+      "description": "H.264 main profile 4:3 aspect at SD resolution in MP4. Covers legacy aspect branch.",
+      "container": "mp4",
+      "width": 720,
+      "height": 540,
+      "video": { "codec": "libx264", "profile": "main", "pix_fmt": "yuv420p", "bitrate": "1200k", "preset": "medium" },
+      "audio": { "codec": "aac", "bitrate": "128k", "channels": 2, "sample_rate": 44100 }
+    },
+    {
+      "name": "h264_mp4_9_16_vertical",
+      "title": "H.264 MP4 9:16 Vertical (mobile)",
+      "description": "H.264 high profile 9:16 vertical aspect in MP4 with AAC. Covers mobile/vertical branch.",
+      "container": "mp4",
+      "width": 720,
+      "height": 1280,
+      "video": { "codec": "libx264", "profile": "high", "pix_fmt": "yuv420p", "bitrate": "2500k", "preset": "medium" },
+      "audio": { "codec": "aac", "bitrate": "128k", "channels": 2, "sample_rate": 48000 }
+    },
+    {
+      "name": "mpeg2_ts_1080i_broadcast",
+      "title": "MPEG-2 TS 1080i Broadcast",
+      "description": "MPEG-2 Video Main@High interlaced (1080i 29.97) in MPEG-TS with MP2 stereo audio. DVB-T / ATSC broadcast profile.",
+      "container": "ts",
+      "width": 1920,
+      "height": 1080,
+      "framerate": 29.97,
+      "video": {
+        "codec": "mpeg2video",
+        "pix_fmt": "yuv420p",
+        "bitrate": "12000k",
+        "interlace": true,
+        "interlace_fps": 59.94,
+        "aspect": "16:9"
+      },
+      "audio": { "codec": "mp2", "bitrate": "192k", "channels": 2, "sample_rate": 48000 }
+    },
+    {
+      "name": "mpeg2_ts_480i_ntsc",
+      "title": "MPEG-2 TS 480i NTSC",
+      "description": "MPEG-2 Video interlaced (480i 29.97) in MPEG-TS with MP2 stereo audio. NTSC SD broadcast-style.",
+      "container": "ts",
+      "width": 720,
+      "height": 480,
+      "framerate": 29.97,
+      "video": {
+        "codec": "mpeg2video",
+        "pix_fmt": "yuv420p",
+        "bitrate": "4000k",
+        "interlace": true,
+        "interlace_fps": 59.94,
+        "sar": "10/11"
+      },
+      "audio": { "codec": "mp2", "bitrate": "192k", "channels": 2, "sample_rate": 48000 }
+    },
+    {
+      "name": "mpeg4_avi_mp3_xvid",
+      "title": "MPEG-4 Part 2 (Xvid-tagged) AVI with MP3",
+      "description": "MPEG-4 Part 2 ASP in AVI tagged XVID (so legacy DivX/Xvid players recognize it) with MP3 stereo.",
+      "container": "avi",
+      "width": 640,
+      "height": 480,
+      "video": { "codec": "mpeg4", "pix_fmt": "yuv420p", "qscale": 4, "vtag": "XVID" },
+      "audio": { "codec": "libmp3lame", "bitrate": "192k", "channels": 2, "sample_rate": 48000 }
+    },
+    {
+      "name": "wmv_asf_wmav2",
+      "title": "WMV2 ASF with WMA2",
+      "description": "Windows Media Video 8 (WMV2) + Windows Media Audio 2 (WMA2) in ASF/WMV container.",
+      "container": "wmv",
+      "width": 1280,
+      "height": 720,
+      "video": { "codec": "wmv2", "pix_fmt": "yuv420p", "bitrate": "2500k" },
+      "audio": { "codec": "wmav2", "bitrate": "128k", "channels": 2, "sample_rate": 48000 }
+    },
+    {
+      "name": "h264_mp4_pal_anamorphic",
+      "title": "H.264 MP4 PAL Anamorphic Widescreen",
+      "description": "H.264 high 720x576 PAL with SAR 64:45 (non-square pixels) so DAR resolves to exactly 16:9. Exercises anamorphic display-aspect handling.",
+      "container": "mp4",
+      "width": 720,
+      "height": 576,
+      "framerate": 25,
+      "video": {
+        "codec": "libx264",
+        "profile": "high",
+        "pix_fmt": "yuv420p",
+        "bitrate": "2500k",
+        "preset": "medium",
+        "sar": "64/45"
+      },
+      "audio": { "codec": "aac", "bitrate": "128k", "channels": 2, "sample_rate": 48000 }
+    },
+    {
+      "name": "hevc_mp4_10bit_bt709_sdr",
+      "title": "HEVC MP4 10-bit BT.709 SDR (studio intermediate)",
+      "description": "HEVC main10 10-bit SDR in BT.709. Studio/intermediate content where 10-bit is for banding headroom, not HDR.",
+      "container": "mp4",
+      "video": {
+        "codec": "libx265",
+        "profile": "main10",
+        "pix_fmt": "yuv420p10le",
+        "bitrate": "5000k",
+        "preset": "medium",
+        "tag": "hvc1",
+        "hdr": {
+          "kind": "sdr_10bit",
+          "color_primaries": "bt709",
+          "color_trc": "bt709",
+          "colorspace": "bt709",
+          "x265_params": "colorprim=bt709:transfer=bt709:colormatrix=bt709"
+        }
+      },
+      "audio": { "codec": "aac", "bitrate": "192k", "channels": 2, "sample_rate": 48000 }
+    }
+  ],
+
+  "audio_only_variants": [
+    {
+      "name": "audio_aac_stereo",
+      "title": "AAC Stereo Audio Only",
+      "description": "AAC-LC stereo in M4A container.",
+      "container": "m4a",
+      "audio": { "codec": "aac", "bitrate": "192k", "channels": 2, "sample_rate": 48000 }
+    },
+    {
+      "name": "audio_ac3_51",
+      "title": "AC-3 5.1 Audio Only",
+      "description": "AC-3 5.1 surround, raw AC-3 stream.",
+      "container": "ac3",
+      "audio": { "codec": "ac3", "bitrate": "448k", "channels": 6, "sample_rate": 48000 }
+    },
+    {
+      "name": "audio_eac3_51",
+      "title": "E-AC-3 5.1 Audio Only",
+      "description": "Enhanced AC-3 5.1 surround, raw E-AC-3 stream.",
+      "container": "eac3",
+      "audio": { "codec": "eac3", "bitrate": "640k", "channels": 6, "sample_rate": 48000 }
+    },
+    {
+      "name": "audio_opus_stereo",
+      "title": "Opus Stereo Audio Only",
+      "description": "Opus stereo in Ogg container.",
+      "container": "ogg",
+      "audio": { "codec": "libopus", "bitrate": "160k", "channels": 2, "sample_rate": 48000 }
+    },
+    {
+      "name": "audio_mp3_stereo",
+      "title": "MP3 Stereo Audio Only",
+      "description": "MP3 stereo CBR 192 kbps.",
+      "container": "mp3",
+      "audio": { "codec": "libmp3lame", "bitrate": "192k", "channels": 2, "sample_rate": 48000 }
+    },
+    {
+      "name": "audio_flac_stereo",
+      "title": "FLAC Stereo Audio Only",
+      "description": "FLAC lossless stereo.",
+      "container": "flac",
+      "audio": { "codec": "flac", "channels": 2, "sample_rate": 48000 }
+    },
+    {
+      "name": "audio_pcm_wav",
+      "title": "PCM WAV Stereo Audio Only",
+      "description": "PCM 16-bit LE stereo in WAV.",
+      "container": "wav",
+      "audio": { "codec": "pcm_s16le", "channels": 2, "sample_rate": 48000 }
+    },
+    {
+      "name": "audio_aac_mono",
+      "title": "AAC Mono Audio Only",
+      "description": "AAC-LC mono in M4A. Exercises mono-track ingest / UI branch.",
+      "container": "m4a",
+      "audio": { "codec": "aac", "bitrate": "96k", "channels": 1, "sample_rate": 48000 }
+    },
+    {
+      "name": "audio_aac_71",
+      "title": "AAC 7.1 Audio Only",
+      "description": "AAC-LC 7.1 surround in M4A.",
+      "container": "m4a",
+      "audio": { "codec": "aac", "bitrate": "384k", "channels": 8, "sample_rate": 48000 }
+    },
+    {
+      "name": "audio_pcm_714_bed",
+      "title": "PCM 7.1.4 Bed (12-channel)",
+      "description": "PCM 16-bit LE 7.1.4 bed (12 channels) in WAV. Covers discrete-channel object-audio bed layouts without needing proprietary Atmos metadata.",
+      "container": "wav",
+      "audio": { "codec": "pcm_s16le", "channels": 12, "sample_rate": 48000 }
+    },
+    {
+      "name": "audio_pcm_914_bed",
+      "title": "PCM 9.1.4 Bed (14-channel Atmos-style bed)",
+      "description": "PCM 16-bit LE 9.1.4 bed (14 channels) in WAV. Representative of a Dolby Atmos 9.1.4 channel-based bed — objects + metadata are proprietary, but the bed itself is just multichannel PCM.",
+      "container": "wav",
+      "audio": { "codec": "pcm_s16le", "channels": 14, "sample_rate": 48000 }
+    },
+    {
+      "name": "audio_pcm_24bit_48k",
+      "title": "PCM 24-bit 48 kHz Stereo",
+      "description": "PCM s24le stereo at 48 kHz in WAV. 24-bit sample depth.",
+      "container": "wav",
+      "audio": { "codec": "pcm_s24le", "channels": 2, "sample_rate": 48000 }
+    },
+    {
+      "name": "audio_flac_24bit_96k",
+      "title": "FLAC 24-bit 96 kHz Stereo (hi-res)",
+      "description": "FLAC lossless stereo at 96 kHz 24-bit. Hi-res audio branch.",
+      "container": "flac",
+      "audio": { "codec": "flac", "channels": 2, "sample_rate": 96000, "sample_fmt": "s32" }
+    },
+    {
+      "name": "audio_flac_24bit_192k",
+      "title": "FLAC 24-bit 192 kHz Stereo (studio)",
+      "description": "FLAC lossless stereo at 192 kHz 24-bit. Studio-master audio branch.",
+      "container": "flac",
+      "audio": { "codec": "flac", "channels": 2, "sample_rate": 192000, "sample_fmt": "s32" }
+    }
+  ],
+
+  "subtitle_variants": [
+    {
+      "name": "sub_external_srt_eng",
+      "title": "External SRT (English)",
+      "description": "Sidecar SRT subtitle file in English.",
+      "format": "srt",
+      "embed": false,
+      "language": "eng"
+    },
+    {
+      "name": "sub_external_webvtt_eng",
+      "title": "External WebVTT (English)",
+      "description": "Sidecar WebVTT subtitle file in English.",
+      "format": "webvtt",
+      "embed": false,
+      "language": "eng"
+    },
+    {
+      "name": "sub_external_ass_eng",
+      "title": "External ASS (English)",
+      "description": "Sidecar ASS subtitle file in English.",
+      "format": "ass",
+      "embed": false,
+      "language": "eng"
+    },
+    {
+      "name": "h264_mkv_srt_embedded",
+      "title": "H.264 MKV with embedded SRT",
+      "description": "H.264 in Matroska with embedded SRT subtitle track.",
+      "format": "srt",
+      "embed": true,
+      "language": "eng",
+      "container": "mkv",
+      "video": { "codec": "libx264", "profile": "high", "pix_fmt": "yuv420p", "bitrate": "3000k", "preset": "medium" },
+      "audio": { "codec": "aac", "bitrate": "192k", "channels": 2, "sample_rate": 48000 }
+    },
+    {
+      "name": "h264_mkv_ass_embedded",
+      "title": "H.264 MKV with embedded ASS",
+      "description": "H.264 in Matroska with embedded ASS subtitle track.",
+      "format": "ass",
+      "embed": true,
+      "language": "eng",
+      "container": "mkv",
+      "video": { "codec": "libx264", "profile": "high", "pix_fmt": "yuv420p", "bitrate": "3000k", "preset": "medium" },
+      "audio": { "codec": "aac", "bitrate": "192k", "channels": 2, "sample_rate": 48000 }
+    },
+    {
+      "name": "h264_mp4_mov_text",
+      "title": "H.264 MP4 with mov_text (3GPP Timed Text)",
+      "description": "H.264 in MP4 with mov_text embedded subtitle track.",
+      "format": "mov_text",
+      "embed": true,
+      "language": "eng",
+      "container": "mp4",
+      "video": { "codec": "libx264", "profile": "high", "pix_fmt": "yuv420p", "bitrate": "3000k", "preset": "medium" },
+      "audio": { "codec": "aac", "bitrate": "192k", "channels": 2, "sample_rate": 48000 }
+    }
+  ],
+
+  "stream_variants": [
+    {
+      "name": "hls_h264_aac",
+      "title": "HLS H.264 AAC",
+      "description": "HLS VOD with H.264 + AAC, 4 second segments.",
+      "type": "hls",
+      "segment_duration": 4,
+      "video": { "codec": "libx264", "profile": "main", "pix_fmt": "yuv420p", "bitrate": "3000k", "preset": "medium" },
+      "audio": { "codec": "aac", "bitrate": "192k", "channels": 2, "sample_rate": 48000 }
+    },
+    {
+      "name": "dash_h264_aac",
+      "title": "DASH H.264 AAC",
+      "description": "DASH VOD with H.264 + AAC, 4 second segments.",
+      "type": "dash",
+      "segment_duration": 4,
+      "video": { "codec": "libx264", "profile": "main", "pix_fmt": "yuv420p", "bitrate": "3000k", "preset": "medium" },
+      "audio": { "codec": "aac", "bitrate": "192k", "channels": 2, "sample_rate": 48000 }
+    }
+  ],
+
+  "edge_cases": [
+    {
+      "name": "edge_no_audio",
+      "title": "Edge: No Audio Track",
+      "description": "H.264 MP4 with no audio stream.",
+      "container": "mp4",
+      "flags": ["no_audio"],
+      "video": { "codec": "libx264", "profile": "high", "pix_fmt": "yuv420p", "bitrate": "2500k", "preset": "medium" }
+    },
+    {
+      "name": "edge_audio_only",
+      "title": "Edge: Audio-Only File",
+      "description": "Audio-only AAC in M4A container.",
+      "container": "m4a",
+      "flags": ["audio_only"],
+      "audio": { "codec": "aac", "bitrate": "192k", "channels": 2, "sample_rate": 48000 }
+    },
+    {
+      "name": "edge_multi_audio_tracks",
+      "title": "Edge: Multiple Audio Tracks",
+      "description": "H.264 MKV with English AAC stereo and Spanish AC-3 5.1.",
+      "container": "mkv",
+      "flags": ["multi_audio"],
+      "video": { "codec": "libx264", "profile": "high", "pix_fmt": "yuv420p", "bitrate": "3000k", "preset": "medium" },
+      "audio_tracks": [
+        {
+          "codec": "aac",
+          "bitrate": "192k",
+          "channels": 2,
+          "sample_rate": 48000,
+          "language": "eng",
+          "title": "English Stereo",
+          "default": true
+        },
+        {
+          "codec": "ac3",
+          "bitrate": "448k",
+          "channels": 6,
+          "sample_rate": 48000,
+          "language": "spa",
+          "title": "Spanish 5.1",
+          "default": false
+        }
+      ]
+    },
+    {
+      "name": "edge_multi_subtitle_tracks",
+      "title": "Edge: Multiple Subtitle Tracks",
+      "description": "H.264 MKV with three subtitle tracks: English default, Spanish forced, Japanese.",
+      "container": "mkv",
+      "flags": ["multi_subtitle", "forced_subtitle"],
+      "video": { "codec": "libx264", "profile": "high", "pix_fmt": "yuv420p", "bitrate": "3000k", "preset": "medium" },
+      "audio": { "codec": "aac", "bitrate": "192k", "channels": 2, "sample_rate": 48000 },
+      "subtitle_tracks": [
+        { "format": "srt", "language": "eng", "title": "English", "default": true, "forced": false },
+        { "format": "srt", "language": "spa", "title": "Spanish Forced", "default": false, "forced": true },
+        { "format": "ass", "language": "jpn", "title": "Japanese", "default": false, "forced": false }
+      ]
+    },
+    {
+      "name": "edge_variable_fps",
+      "title": "Edge: Variable Frame Rate",
+      "description": "H.264 MKV with variable frame rate (VFR) timing.",
+      "container": "mkv",
+      "flags": ["variable_fps"],
+      "video": {
+        "codec": "libx264",
+        "profile": "high",
+        "pix_fmt": "yuv420p",
+        "bitrate": "3000k",
+        "preset": "medium",
+        "vfr": true
+      },
+      "audio": { "codec": "aac", "bitrate": "192k", "channels": 2, "sample_rate": 48000 }
+    },
+    {
+      "name": "edge_broken_pts",
+      "title": "Edge: Broken Timestamps",
+      "description": "H.264 TS with deliberately discontinuous PTS values.",
+      "container": "ts",
+      "flags": ["broken_timestamps"],
+      "video": {
+        "codec": "libx264",
+        "profile": "main",
+        "pix_fmt": "yuv420p",
+        "bitrate": "3000k",
+        "preset": "medium",
+        "broken_pts": true
+      },
+      "audio": { "codec": "aac", "bitrate": "192k", "channels": 2, "sample_rate": 48000 }
+    },
+    {
+      "name": "edge_low_bitrate",
+      "title": "Edge: Very Low Bitrate",
+      "description": "H.264 MP4 encoded at an aggressive low bitrate (150 kbps video).",
+      "container": "mp4",
+      "flags": ["low_bitrate"],
+      "video": {
+        "codec": "libx264",
+        "profile": "baseline",
+        "pix_fmt": "yuv420p",
+        "bitrate": "150k",
+        "preset": "veryfast"
+      },
+      "audio": { "codec": "aac", "bitrate": "32k", "channels": 2, "sample_rate": 48000 }
+    },
+    {
+      "name": "edge_high_bitrate_stress",
+      "title": "Edge: High Bitrate Stress",
+      "description": "H.264 MKV at 80 Mbps video + 640 kbps AC-3 5.1.",
+      "container": "mkv",
+      "flags": ["high_bitrate"],
+      "video": { "codec": "libx264", "profile": "high", "pix_fmt": "yuv420p", "bitrate": "80000k", "preset": "medium" },
+      "audio": { "codec": "ac3", "bitrate": "640k", "channels": 6, "sample_rate": 48000 }
+    },
+    {
+      "name": "edge_annexb_stream",
+      "title": "Edge: H.264 Annex B Bitstream",
+      "description": "H.264 Annex B byte-stream format in MPEG-TS.",
+      "container": "ts",
+      "flags": ["annexb"],
+      "video": {
+        "codec": "libx264",
+        "profile": "main",
+        "pix_fmt": "yuv420p",
+        "bitrate": "3000k",
+        "preset": "medium",
+        "bsf": "h264_mp4toannexb"
+      },
+      "audio": { "codec": "aac", "bitrate": "192k", "channels": 2, "sample_rate": 48000 }
+    },
+    {
+      "name": "edge_avcc_stream",
+      "title": "Edge: H.264 AVCC Bitstream",
+      "description": "H.264 AVCC (length-prefixed NALU) bitstream in MP4.",
+      "container": "mp4",
+      "flags": ["avcc"],
+      "video": { "codec": "libx264", "profile": "high", "pix_fmt": "yuv420p", "bitrate": "3000k", "preset": "medium" },
+      "audio": { "codec": "aac", "bitrate": "192k", "channels": 2, "sample_rate": 48000 }
+    },
+    {
+      "name": "edge_fragmented_mp4",
+      "title": "Edge: Fragmented MP4",
+      "description": "H.264 fragmented MP4 (fMP4) with empty moov and MOOF-based fragments.",
+      "container": "mp4",
+      "flags": ["fragmented_mp4"],
+      "video": {
+        "codec": "libx264",
+        "profile": "high",
+        "pix_fmt": "yuv420p",
+        "bitrate": "3000k",
+        "preset": "medium",
+        "fragmented": true
+      },
+      "audio": { "codec": "aac", "bitrate": "192k", "channels": 2, "sample_rate": 48000 }
+    },
+    {
+      "name": "edge_missing_metadata",
+      "title": "Edge: Missing Metadata",
+      "description": "H.264 MP4 with container and stream metadata stripped.",
+      "container": "mp4",
+      "flags": ["missing_metadata"],
+      "video": {
+        "codec": "libx264",
+        "profile": "high",
+        "pix_fmt": "yuv420p",
+        "bitrate": "3000k",
+        "preset": "medium",
+        "strip_metadata": true
+      },
+      "audio": { "codec": "aac", "bitrate": "192k", "channels": 2, "sample_rate": 48000 }
+    },
+    {
+      "name": "edge_edit_list",
+      "title": "Edge: MP4 with Edit List (non-zero start_time)",
+      "description": "H.264 MP4 with a 500 ms input time offset, which the MP4 muxer emits as an edts/elst edit-list entry. Covers players that ignore edit lists.",
+      "container": "mp4",
+      "flags": ["edit_list", "nonzero_start_time"],
+      "video": {
+        "codec": "libx264",
+        "profile": "high",
+        "pix_fmt": "yuv420p",
+        "bitrate": "3000k",
+        "preset": "medium",
+        "itsoffset": 0.5
+      },
+      "audio": { "codec": "aac", "bitrate": "192k", "channels": 2, "sample_rate": 48000 }
+    },
+    {
+      "name": "edge_truncated",
+      "title": "Edge: Truncated File",
+      "description": "H.264 MP4 truncated to 50% of its byte length after encoding. Simulates partial download / corrupt tail.",
+      "container": "mp4",
+      "flags": ["truncated", "corrupt_tail"],
+      "video": { "codec": "libx264", "profile": "high", "pix_fmt": "yuv420p", "bitrate": "3000k", "preset": "medium" },
+      "audio": { "codec": "aac", "bitrate": "192k", "channels": 2, "sample_rate": 48000 },
+      "truncate_to_percent": 50
+    }
+  ],
+
+  "external_variants": [
+    {
+      "name": "external_dolby_vision_p5",
+      "title": "Dolby Vision Profile 5 (IPT-PQ-C2, single layer)",
+      "description": "HEVC Main10 with Dolby Vision RPU NALs, Profile 5 (single-layer, IPT-PQ-C2). Not backward compatible with HDR10 or SDR. Requires externally-supplied sample.",
+      "source_path": "sources/external/dolby_vision_p5.mp4",
+      "container": "mp4",
+      "flags": ["external", "dolby_vision", "dv_profile_5", "hdr"],
+      "license_note": "Cannot be synthesized with stock ffmpeg — requires Dolby RPU tooling or a licensed sample.",
+      "out_subdir": "external"
+    },
+    {
+      "name": "external_dolby_vision_p8_1",
+      "title": "Dolby Vision Profile 8.1 (HDR10-compatible base layer)",
+      "description": "HEVC Main10 with Dolby Vision RPU, Profile 8.1. Base layer is HDR10 so HDR10 devices get valid playback; DV-capable devices use RPU.",
+      "source_path": "sources/external/dolby_vision_p8_1.mp4",
+      "container": "mp4",
+      "flags": ["external", "dolby_vision", "dv_profile_8_1", "hdr", "hdr10_base"],
+      "license_note": "Cannot be synthesized with stock ffmpeg — requires Dolby RPU tooling or a licensed sample.",
+      "out_subdir": "external"
+    },
+    {
+      "name": "external_hdr10_plus",
+      "title": "HDR10+ Dynamic Metadata",
+      "description": "HEVC Main10 with HDR10+ dynamic tone-mapping metadata (SMPTE ST 2094-40).",
+      "source_path": "sources/external/hdr10plus.mp4",
+      "container": "mp4",
+      "flags": ["external", "hdr10_plus", "hdr", "dynamic_metadata"],
+      "license_note": "Requires hdr10plus_tool-generated metadata or a licensed sample.",
+      "out_subdir": "external"
+    },
+    {
+      "name": "external_dts_hd_ma",
+      "title": "DTS-HD Master Audio 5.1",
+      "description": "H.264 in MKV with DTS-HD MA lossless 5.1 track. FFmpeg cannot encode DTS-HD MA — only decode.",
+      "source_path": "sources/external/dts_hd_ma_5_1.mkv",
+      "container": "mkv",
+      "flags": ["external", "dts_hd_ma", "lossless_audio", "5_1"],
+      "license_note": "DTS encoders are proprietary — sample must be obtained from a licensed source.",
+      "out_subdir": "external"
+    },
+    {
+      "name": "external_truehd_atmos",
+      "title": "Dolby TrueHD with Atmos",
+      "description": "H.264 in MKV with Dolby TrueHD + Atmos object audio. FFmpeg cannot encode TrueHD.",
+      "source_path": "sources/external/truehd_atmos.mkv",
+      "container": "mkv",
+      "flags": ["external", "truehd", "atmos", "lossless_audio", "object_audio"],
+      "license_note": "Dolby TrueHD encoder is proprietary — sample must be obtained from a licensed source.",
+      "out_subdir": "external"
+    },
+    {
+      "name": "external_eac3_joc_atmos",
+      "title": "E-AC-3 with JOC (Dolby Digital Plus Atmos)",
+      "description": "H.264 in MP4 with Dolby Digital Plus Joint Object Coding (Atmos). FFmpeg cannot encode JOC metadata.",
+      "source_path": "sources/external/eac3_joc_atmos.mp4",
+      "container": "mp4",
+      "flags": ["external", "eac3_joc", "atmos", "object_audio"],
+      "license_note": "Dolby Atmos encoder is proprietary — sample must be obtained from a licensed source.",
+      "out_subdir": "external"
+    },
+    {
+      "name": "external_4k_hevc_real_content",
+      "title": "4K HEVC HDR10 real-world content",
+      "description": "Real-world 4K HEVC HDR10 clip (not a test pattern) for realistic pipeline stress.",
+      "source_path": "sources/external/4k_hevc_hdr10.mkv",
+      "container": "mkv",
+      "flags": ["external", "4k", "hdr10", "real_content"],
+      "license_note": "Sample must be obtained separately.",
+      "out_subdir": "external"
+    },
+    {
+      "name": "external_vc1_bluray",
+      "title": "VC-1 Blu-ray sample",
+      "description": "VC-1 (SMPTE 421M) video, typical Blu-ray format. FFmpeg can decode VC-1 but has no VC-1 encoder — sample must be sourced externally.",
+      "source_path": "sources/external/vc1_bluray.m2ts",
+      "container": "m2ts",
+      "flags": ["external", "vc1", "legacy_codec", "bluray"],
+      "license_note": "FFmpeg has no VC-1 encoder. Sample must be obtained from a licensed source (e.g., Blu-ray rip).",
+      "out_subdir": "external"
+    }
+  ]
+}

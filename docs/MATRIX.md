@@ -1,12 +1,13 @@
 # Matrix Catalog
 
-Complete catalog of every declared variant in `config/media_matrix.json`, grouped by section. Each entry lists the filename, what it tests, and the ffmpeg command shape used to produce it. Numbers match the current matrix (66 total: 58 synthesizable, 8 external).
+Complete catalog of every declared variant in `config/media_matrix.json`, grouped by section. Each entry lists the filename, what it tests, and the ffmpeg command shape used to produce it. Numbers match the current matrix (109 total: 99 synthesizable, 10 external).
 
 ---
 
 ## Conventions
 
-- **Source assets**: all synthesizable variants derive from `sources/source_master.mov` (1920×1080 ProRes), `sources/source_audio.wav` (PCM stereo 48 kHz, 440 Hz + 880 Hz sine mix), and `sources/source_sub.ass` (ASS subtitle with **one 1-second cue per second**, each showing `[HH:MM:SS] Cue N of TOTAL — timestamp sync sample`). Bootstrap synthesizes these if you don't supply real ones; a sentinel file `sources/.synthetic_sources.json` tracks which files were synthesized so user-supplied assets are never overwritten.
+- **Source assets**: all synthesizable variants derive from `sources/source_master.mov` (1920×1080 ProRes), `sources/source_audio.wav` (PCM stereo 48 kHz, 440 Hz + 880 Hz sine mix), and `sources/source_sub.ass` (ASS subtitle with **one 1-second cue per second**, each showing `[HH:MM:SS] Cue N of TOTAL — timestamp sync sample`). Bootstrap synthesizes these if you don't supply real ones; a sentinel file `sources/.synthetic_sources.json` tracks which files were synthesized so user-supplied assets are never overwritten. Drop images into `sources/images/` to drive the master's picture from real stills instead of the `testsrc2` pattern.
+- **On-screen overlay**: every video variant carries burned-in text — per-frame `PTS` / frame number / timecode top-left (inherited from the master), and the variant name plus codec / container / resolution / fps / audio bottom-left (drawn at encode time). Audio-only variants, external subtitles, and the `external_*` copies carry none. Disable per run with `--no-burn-in`, or per variant with `"burn_in": false`.
 - **Duration**: default is **300 seconds (5 minutes)**, configured in `config/media_matrix.json` → `defaults.duration_seconds`. Override at invocation with `--duration SECONDS` or `--duration-minutes MINUTES`. Changing the duration regenerates the synthetic sources (which touches their mtime), which in turn invalidates any existing outputs so the whole library stays internally consistent.
 - **Default output geometry**: 1280×720 at 24 fps unless the variant declares a `width` / `height` / `framerate` override.
 - **Naming**: `<codec>_<container>[_qualifier].<ext>` for normal variants; `edge_<behavior>` for edge cases; `external_<feature>` for licensed/proprietary slots.
@@ -14,7 +15,7 @@ Complete catalog of every declared variant in `config/media_matrix.json`, groupe
 
 ---
 
-## Video (22 variants)
+## Video (48 variants)
 
 Standard video + audio files at 720p 24 fps unless noted. Covers codec profiles, containers, bit depths, HDR modes, frame rates, aspect ratios, interlacing, and legacy codecs that a media-server pipeline must ingest.
 
@@ -42,10 +43,14 @@ Standard video + audio files at 720p 24 fps unless noted. Covers codec profiles,
 | `mpeg4_avi_mp3_xvid.avi`          | MPEG-4 Part 2 ASP  | AVI       | MP3 192k stereo       | Tagged `XVID` so legacy DivX/Xvid players accept it. 640×480 progressive.                                             |
 | `wmv_asf_wmav2.wmv`               | WMV2 (WMV 8)       | ASF/WMV   | WMA2 128k stereo      | Windows Media codec pair.                                                                                             |
 | `h264_mp4_pal_anamorphic.mp4`     | H.264 High         | MP4       | AAC 128k stereo       | **720×576 PAL** with SAR **64:45** → DAR exactly 16:9. Anamorphic widescreen / non-square pixels branch.              |
+| `chapters_mp4_10.mp4`             | H.264 High         | MP4       | AAC 192k stereo       | **10 evenly spaced chapters**. MP4 stores chapters as a dedicated chapter track.                                      |
+| `chapters_mkv_10.mkv`             | H.264 High         | MKV       | AAC 192k stereo       | The same ten chapters in Matroska, which uses its own chapter structure.                                              |
+| `chapters_mkv_unicode.mkv`        | H.264 High         | MKV       | AAC 192k stereo       | **6 chapters with non-ASCII titles** — accented, Japanese, Arabic (RTL), Greek, emoji. All verified to round-trip.    |
+| `chapters_mkv_100.mkv`            | H.264 High         | MKV       | AAC 192k stereo       | **100 chapters** — chapter-list UI, scrubber marker density, seek-menu paging.                                        |
 
 ---
 
-## Audio-only (14 variants)
+## Audio-only (18 variants)
 
 Pure audio files with no video stream. Tests the pipeline's audio-only ingest path (music import, podcast flow) plus channel layout, bit depth, and sample rate coverage.
 
@@ -119,9 +124,41 @@ Deliberately-pathological files that stress specific pipeline behaviors.
 | `edge_edit_list.mp4`             | `edit_list`, `nonzero_start_time`   | MP4 with a 500 ms input offset (`-itsoffset 0.5`), which the MP4 muxer emits as an `edts/elst` edit-list entry. Tests players that ignore edit lists and start a half-second early.                                                     |
 | `edge_truncated.mp4`             | `truncated`, `corrupt_tail`         | H.264 MP4 with `-movflags +faststart` (moov at front), **truncated to 50 %** of byte length after encoding via a post-process hook. Header parses; decode fails partway through. `verify.py` skips the decode smoke test for this flag. |
 
+### What the overlay exposes on the timestamp edge cases
+
+The burned-in clock comes from the source master and is therefore *unaffected* by any timestamp
+transform applied during the encode. On these three variants that mismatch is the point — the
+on-screen value and the player's position disagree in a way that names the defect:
+
+| Variant             | On-screen behavior                                                                                    |
+| ------------------- | ------------------------------------------------------------------------------------------------------ |
+| `edge_variable_fps` | Burned PTS advances linearly while playback speed ramps, making the `setpts` remap visible per frame.  |
+| `edge_broken_pts`   | Burned clock stays continuous across the injected 5 s container jump, isolating it to the timestamps.  |
+| `edge_edit_list`    | Burned PTS trails the player position by the 0.5 s `itsoffset`, showing the edit list being honored.    |
+
 ---
 
-## External (8 slots — user-supplied)
+## Chapters
+
+Four well-formed chapter variants live in the video section; six malformed ones live in edge cases.
+The malformed set is the interesting half — each row records what the muxer actually produced,
+which is not always what was authored:
+
+| Variant | Authored | Result |
+| --- | --- | --- |
+| `chapters_mp4_10` / `chapters_mkv_10` | 10 even | 10 |
+| `chapters_mkv_unicode` | 6, non-ASCII titles | 6, all titles round-trip |
+| `chapters_mkv_100` | 100 | 100 |
+| `edge_chapters_nonzero_start` | 3, first at 10% | 3 |
+| `edge_chapters_overlap` | 3 overlapping | 3, overlaps intact |
+| `edge_chapters_zero_length` | 3, one zero-length | 2 — one dropped |
+| `edge_chapters_past_eof` | 2, last to 180% | 2, end clamped |
+| `edge_chapters_out_of_order` | 3 descending | 1 — rest discarded |
+| `edge_chapters_stripped` | 5, then stripped | 0 |
+
+---
+
+## External (10 slots — user-supplied)
 
 Entries that **cannot be synthesized with stock ffmpeg** due to proprietary encoders, licensed metadata tooling, or a need for real-world content. Each slot has a declared `source_path` under `sources/external/`. If the file is present, the pipeline copies it into `generated/external/`, probes it, and writes an NFO. If absent, the slot is reported as `pending_external` and skipped without blocking the rest of the build.
 

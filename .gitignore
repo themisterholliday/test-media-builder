@@ -4,6 +4,7 @@ __pycache__/
 .venv/
 .DS_Store
 generated/
+library/
 sources/source_master.mov
 sources/source_audio.wav
 sources/source_sub.ass
@@ -11,4 +12,7 @@ sources/.synthetic_sources.json
 sources/external/*
 !sources/external/.gitkeep
 !sources/external/EXTERNAL_SAMPLES.md
+sources/images/*
+!sources/images/.gitkeep
+sources/.slideshow_cycle.mov
 .build-cache/

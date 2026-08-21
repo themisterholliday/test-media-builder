@@ -17,20 +17,26 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .ffutil import require_binaries
+from .bootstrap import image_set_fingerprint, list_source_images
+from .ffutil import bit_depth_for, ffmpeg_bin, require_binaries
 from .generate import (
     CONFIG_PATH,
     GENERATED_DIR,
     ROOT,
     SECTIONS,
+    SOURCES_DIR,
     _all_plans,
     _filter_plans,
     _load_config,
+    _overlay_record,
     _probe_for,
     _probe_target,
 )
 
 log = logging.getLogger("manifest")
+
+# Populated from the matrix in main() before any entry is built.
+_OVERLAY_SETTINGS: dict = {}
 
 
 def _sha256(path: Path, chunk: int = 1 << 20) -> str:
@@ -61,7 +67,7 @@ def _rate_to_float(rate: str | None) -> float | None:
 
 def _ffmpeg_version() -> str:
     try:
-        out = subprocess.check_output(["ffmpeg", "-version"], text=True, timeout=10)
+        out = subprocess.check_output([ffmpeg_bin(), "-version"], text=True, timeout=10)
         m = re.search(r"ffmpeg version (\S+)", out)
         return m.group(1) if m else "unknown"
     except Exception:  # noqa: BLE001
@@ -71,6 +77,21 @@ def _ffmpeg_version() -> str:
 def _matrix_sha256(cfg: dict) -> str:
     canonical = json.dumps(cfg, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _dar_float(stream: dict) -> float | None:
+    """Return a video stream's display aspect as a float, honouring pixel aspect."""
+    dar = stream.get("display_aspect_ratio")
+    if dar and dar not in ("N/A", "0:1") and ":" in dar:
+        try:
+            num, den = dar.split(":")
+            return round(float(num) / float(den), 4) if float(den) else None
+        except (ValueError, ZeroDivisionError):
+            pass
+    width, height = stream.get("width"), stream.get("height")
+    if width and height:
+        return round(float(width) / float(height), 4)
+    return None
 
 
 def _entry_for(plan, probe: dict | None) -> dict:
@@ -87,6 +108,7 @@ def _entry_for(plan, probe: dict | None) -> dict:
         "container": v.get("container"),
         "flags": v.get("flags", []),
         "status": "built" if exists else "missing",
+        "overlay": _overlay_record(plan, _OVERLAY_SETTINGS),
     }
     if plan.section == "external" and not exists:
         out["status"] = "pending_external"
@@ -126,7 +148,10 @@ def _entry_for(plan, probe: dict | None) -> dict:
                 "width": vs.get("width"),
                 "height": vs.get("height"),
                 "fps": round(fps, 3) if fps else None,
-                "bit_depth": vs.get("bits_per_raw_sample"),
+                "bit_depth": bit_depth_for(vs),
+                "sample_aspect_ratio": vs.get("sample_aspect_ratio"),
+                "display_aspect_ratio": vs.get("display_aspect_ratio"),
+                "display_aspect": _dar_float(vs),
                 "color_primaries": vs.get("color_primaries") or None,
                 "color_transfer": vs.get("color_transfer") or None,
                 "color_space": vs.get("color_space") or None,
@@ -159,6 +184,18 @@ def _entry_for(plan, probe: dict | None) -> dict:
     if isinstance(hdr, dict):
         out["hdr"] = {k: val for k, val in hdr.items() if k != "x265_params"}
 
+    # Read from the probe rather than the spec, so the manifest reports what the file
+    # actually carries after muxing rather than what was requested.
+    out["chapters"] = [
+        {
+            "index": i,
+            "start_sec": float(c["start_time"]) if c.get("start_time") is not None else None,
+            "end_sec": float(c["end_time"]) if c.get("end_time") is not None else None,
+            "title": (c.get("tags") or {}).get("title"),
+        }
+        for i, c in enumerate((probe or {}).get("chapters", []) or [])
+    ]
+
     return out
 
 
@@ -180,6 +217,8 @@ def main(argv: list[str] | None = None) -> int:
 
     require_binaries()
     cfg = _load_config(CONFIG_PATH)
+    global _OVERLAY_SETTINGS
+    _OVERLAY_SETTINGS = (cfg.get("defaults") or {}).get("overlay") or {}
     plans = _all_plans(cfg)
     sections = {s.strip() for s in ns.only.split(",") if s.strip()} or None
     variant_names = {s.strip() for s in ns.variant.split(",") if s.strip()} or None
@@ -201,6 +240,10 @@ def main(argv: list[str] | None = None) -> int:
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "ffmpeg_version": _ffmpeg_version(),
             "matrix_sha256": _matrix_sha256(cfg),
+            # The matrix hash covers config only. Source images live outside it, so
+            # fingerprint them separately or two visually different libraries would
+            # claim identical provenance.
+            "source_images_sha256": image_set_fingerprint(list_source_images(SOURCES_DIR)),
             "entry_count": len(entries),
         },
         "entries": entries,

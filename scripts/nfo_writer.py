@@ -13,6 +13,8 @@ from typing import Any, Iterable
 from xml.dom import minidom
 from xml.etree import ElementTree as ET
 
+from .ffutil import bit_depth_for
+
 log = logging.getLogger("nfo")
 
 TESTLIB_NS = "https://plexapp.com/testlib/v1"
@@ -59,50 +61,18 @@ def _rate_to_float(rate: str | None) -> float | None:
         return None
 
 
-def build_nfo(
-    *,
-    variant_id: str,
-    title: str,
-    description: str,
-    tags: Iterable[str],
-    probe: dict,
-    ffmpeg_cmd: list[str] | None,
-    ffmpeg_version: str,
-    source_refs: list[dict],
-    edge_flags: Iterable[str],
-    hdr: dict | None,
-    output_sha256: str | None,
-    output_size: int | None,
-) -> bytes:
-    """Build a Kodi-compatible NFO document as pretty-printed UTF-8 XML bytes."""
-    root = ET.Element("movie")
+def add_streamdetails(root: ET.Element, probe: dict) -> None:
+    """Append the Kodi <fileinfo><streamdetails> block.
 
-    _sub(root, "title", title)
-    _sub(root, "plot", description)
-    _sub(root, "outline", description)
-    uid = _sub(root, "uniqueid", variant_id)
-    uid.set("type", "testlib")
-    uid.set("default", "true")
-
-    for tag in tags:
-        _sub(root, "tag", tag)
-
+    Shared by the <movie> and <episodedetails> schemas so both describe streams
+    identically.
+    """
     fmt = probe.get("format", {}) or {}
     duration = fmt.get("duration")
-    if duration is not None:
-        try:
-            _sub(root, "runtime", max(1, int(round(float(duration) / 60))))
-        except ValueError:
-            pass
-
     fileinfo = _sub(root, "fileinfo")
     streamdetails = _sub(fileinfo, "streamdetails")
 
-    video_streams = _get_stream(probe, "video")
-    audio_streams = _get_stream(probe, "audio")
-    subtitle_streams = _get_stream(probe, "subtitle")
-
-    for vs in video_streams:
+    for vs in _get_stream(probe, "video"):
         v = _sub(streamdetails, "video")
         _sub(v, "codec", vs.get("codec_name"))
         width = _pick_int(vs.get("width"))
@@ -120,7 +90,7 @@ def build_nfo(
         if fps:
             _sub(v, "framerate", f"{fps:.3f}")
 
-    for as_ in audio_streams:
+    for as_ in _get_stream(probe, "audio"):
         a = _sub(streamdetails, "audio")
         _sub(a, "codec", as_.get("codec_name"))
         _sub(a, "language", (as_.get("tags") or {}).get("language", "und"))
@@ -128,15 +98,68 @@ def build_nfo(
         if channels is not None:
             _sub(a, "channels", channels)
 
-    for ss in subtitle_streams:
-        s = _sub(streamdetails, "subtitle")
-        _sub(s, "language", (ss.get("tags") or {}).get("language", "und"))
+    for ss in _get_stream(probe, "subtitle"):
+        sub = _sub(streamdetails, "subtitle")
+        _sub(sub, "language", (ss.get("tags") or {}).get("language", "und"))
+
+
+def build_nfo(
+    *,
+    variant_id: str,
+    title: str,
+    description: str,
+    tags: Iterable[str],
+    probe: dict,
+    ffmpeg_cmd: list[str] | None,
+    ffmpeg_version: str,
+    source_refs: list[dict],
+    edge_flags: Iterable[str],
+    hdr: dict | None,
+    output_sha256: str | None,
+    output_size: int | None,
+    overlay: dict | None = None,
+    root_tag: str = "movie",
+    head_extra: dict | None = None,
+    generator: str | None = None,
+) -> bytes:
+    """Build a Kodi-compatible NFO as pretty-printed UTF-8 XML bytes.
+
+    `root_tag` and `head_extra` let the episode schema reuse this whole body — the
+    streamdetails block and the full <testlib> provenance extension are identical
+    for a movie and an episode, so only the head differs.
+    """
+    root = ET.Element(root_tag)
+
+    _sub(root, "title", title)
+    for key, value in (head_extra or {}).items():
+        _sub(root, key, value)
+    _sub(root, "plot", description)
+    _sub(root, "outline", description)
+    uid = _sub(root, "uniqueid", variant_id)
+    uid.set("type", "testlib")
+    uid.set("default", "true")
+
+    for tag in tags:
+        _sub(root, "tag", tag)
+
+    fmt = probe.get("format", {}) or {}
+    duration = fmt.get("duration")
+    if duration is not None:
+        try:
+            _sub(root, "runtime", max(1, int(round(float(duration) / 60))))
+        except ValueError:
+            pass
+
+    video_streams = _get_stream(probe, "video")
+    audio_streams = _get_stream(probe, "audio")
+    subtitle_streams = _get_stream(probe, "subtitle")
+    add_streamdetails(root, probe)
 
     ET.register_namespace("testlib", TESTLIB_NS)
     ext = ET.SubElement(root, f"{{{TESTLIB_NS}}}testlib")
 
     _sub(ext, "id", variant_id)
-    _sub(ext, "generator", "ffmpeg" if ffmpeg_cmd else "external")
+    _sub(ext, "generator", generator or ("ffmpeg" if ffmpeg_cmd else "external"))
     _sub(ext, "ffmpeg_version", ffmpeg_version)
     if ffmpeg_cmd is not None:
         _sub(ext, "command", " ".join(_shellquote(a) for a in ffmpeg_cmd))
@@ -157,7 +180,7 @@ def build_nfo(
         v_detail.set("profile", str(vs.get("profile", "") or ""))
         v_detail.set("level", str(vs.get("level", "") or ""))
         v_detail.set("pix_fmt", str(vs.get("pix_fmt", "") or ""))
-        v_detail.set("bit_depth", str(vs.get("bits_per_raw_sample", "") or ""))
+        v_detail.set("bit_depth", str(bit_depth_for(vs) or ""))
         v_detail.set("color_primaries", str(vs.get("color_primaries", "") or ""))
         v_detail.set("color_transfer", str(vs.get("color_transfer", "") or ""))
         v_detail.set("color_space", str(vs.get("color_space", "") or ""))
@@ -207,6 +230,26 @@ def build_nfo(
             if isinstance(v, (str, int, float)) and k != "x265_params":
                 hdr_el.set(k, str(v))
 
+    probe_chapters = probe.get("chapters", []) or []
+    if probe_chapters:
+        chapters_el = _sub(ext, "chapters")
+        chapters_el.set("count", str(len(probe_chapters)))
+        for idx, c in enumerate(probe_chapters):
+            ch = _sub(chapters_el, "chapter")
+            ch.set("index", str(idx))
+            # A chapter legitimately starts at 0.0, which is falsy — test for None.
+            start = c.get("start_time")
+            end = c.get("end_time")
+            ch.set("start", "" if start is None else str(start))
+            ch.set("end", "" if end is None else str(end))
+            ch.set("title", str((c.get("tags") or {}).get("title") or ""))
+
+    if overlay:
+        overlay_el = _sub(ext, "overlay")
+        for k, v in overlay.items():
+            if isinstance(v, (str, int, float, bool)):
+                overlay_el.set(k, str(v))
+
     flags_el = _sub(ext, "edge_case_flags")
     for f in edge_flags:
         _sub(flags_el, "flag", f)
@@ -223,6 +266,46 @@ def build_nfo(
         out_el.set("sha256", output_sha256)
     if output_size is not None:
         out_el.set("size", str(output_size))
+
+    xml_bytes = ET.tostring(root, encoding="utf-8", xml_declaration=False)
+    pretty = minidom.parseString(xml_bytes).toprettyxml(indent="  ", encoding="utf-8")
+    return pretty
+
+
+def build_episode_nfo(*, show_title: str, season: int, episode: int, **kwargs) -> bytes:
+    """Build a Kodi <episodedetails> NFO for one variant inside a facet show.
+
+    Delegates to build_nfo so the stream details and the <testlib> provenance block
+    are byte-identical to the movie schema.
+    """
+    return build_nfo(
+        root_tag="episodedetails",
+        head_extra={"showtitle": show_title, "season": season, "episode": episode},
+        **kwargs,
+    )
+
+
+def build_tvshow_nfo(*, show_id: str, title: str, plot: str, episode_count: int,
+                     tags: Iterable[str] = ()) -> bytes:
+    """Build a Kodi <tvshow> NFO describing one facet of the library."""
+    root = ET.Element("tvshow")
+    _sub(root, "title", title)
+    _sub(root, "showtitle", title)
+    _sub(root, "plot", plot)
+    _sub(root, "outline", plot)
+    uid = _sub(root, "uniqueid", show_id)
+    uid.set("type", "testlib")
+    uid.set("default", "true")
+    _sub(root, "season", 1)
+    _sub(root, "episode", episode_count)
+    for tag in tags:
+        _sub(root, "tag", tag)
+
+    ET.register_namespace("testlib", TESTLIB_NS)
+    ext = ET.SubElement(root, f"{{{TESTLIB_NS}}}testlib")
+    _sub(ext, "id", show_id)
+    _sub(ext, "kind", "facet")
+    _sub(ext, "episode_count", episode_count)
 
     xml_bytes = ET.tostring(root, encoding="utf-8", xml_declaration=False)
     pretty = minidom.parseString(xml_bytes).toprettyxml(indent="  ", encoding="utf-8")

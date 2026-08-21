@@ -21,13 +21,14 @@ import platform
 import re
 import shutil
 import subprocess
+import tempfile
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, Iterable
 
-from .bootstrap import ensure_sources
+from . import chapters as chapters_mod
+from .bootstrap import ensure_sources, list_source_images
 from .encoders import (
     build_audio_only,
     build_edge,
@@ -35,9 +36,23 @@ from .encoders import (
     build_subtitle_embedded,
     build_subtitle_external,
     build_video,
+    codec_family,
+    effective_duration,
 )
-from .ffutil import FFBinaryMissing, FFExecError, ffprobe, require_binaries, run_ffmpeg
+from .ffutil import (
+    FFBinaryMissing,
+    FFCapabilityMissing,
+    FFExecError,
+    configure_binaries,
+    ffmpeg_bin,
+    ffprobe,
+    require_binaries,
+    require_filters,
+    resolve_binary,
+    run_ffmpeg,
+)
 from .nfo_writer import build_nfo, write_nfo
+from .overlay import describe as describe_overlay
 
 log = logging.getLogger("generate")
 
@@ -63,6 +78,11 @@ CONTAINER_EXT = {
     "avi": "avi",
     "wmv": "wmv",
     "m2ts": "m2ts",
+    "mov": "mov",
+    "3gp": "3gp",
+    "mxf": "mxf",
+    "ogv": "ogv",
+    "vob": "vob",
 }
 
 
@@ -101,7 +121,7 @@ def _sha256(path: Path, chunk: int = 1 << 20) -> str:
 def _ffmpeg_version() -> str:
     """Return the running ffmpeg binary version string, or 'unknown'."""
     try:
-        out = subprocess.check_output(["ffmpeg", "-version"], text=True, timeout=10)
+        out = subprocess.check_output([ffmpeg_bin(), "-version"], text=True, timeout=10)
         m = re.search(r"ffmpeg version (\S+)", out)
         return m.group(1) if m else "unknown"
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
@@ -109,10 +129,34 @@ def _ffmpeg_version() -> str:
 
 
 def _load_config(path: Path) -> dict:
+    """Load the matrix config and apply any ffmpeg binary paths it declares.
+
+    Every entry point (generate, verify, manifest, thumbnails) goes through here, so
+    the configured binary applies uniformly without each script repeating the wiring.
+    """
     if not path.exists():
         raise FileNotFoundError(f"config not found: {path}")
     with path.open("r", encoding="utf-8") as f:
-        return json.load(f)
+        cfg = json.load(f)
+    defaults = cfg.get("defaults") or {}
+    configure_binaries(defaults.get("ffmpeg_bin"), defaults.get("ffprobe_bin"))
+    global _SOURCE_DEFAULTS
+    _SOURCE_DEFAULTS = defaults
+    return cfg
+
+
+# Source filenames come from the matrix. Captured at config load so the handful of
+# helpers that need them do not each have to be threaded the defaults dict.
+_SOURCE_DEFAULTS: dict = {}
+
+
+def _source_names(defaults: dict) -> tuple[str, str, str]:
+    """Return (video, audio, subtitle) source filenames as declared in the matrix."""
+    return (
+        defaults.get("source_video", "source_master.mov"),
+        defaults.get("source_audio", "source_audio.wav"),
+        defaults.get("source_subtitle", "source_sub.ass"),
+    )
 
 
 def _filename_for(variant: dict, container: str) -> str:
@@ -270,29 +314,35 @@ def _verify_contract(plan: Plan, probe: dict) -> list[str]:
 
 
 def _codec_family(codec: str) -> str:
-    """Map an ffmpeg encoder name to the codec family ffprobe will report."""
-    mapping = {
-        "libx264": "h264",
-        "libx265": "hevc",
-        "libaom-av1": "av1",
-        "libsvtav1": "av1",
-        "librav1e": "av1",
-        "libvpx-vp9": "vp9",
-        "libopus": "opus",
-        "libmp3lame": "mp3",
-        "mpeg2video": "mpeg2video",
-        "mpeg4": "mpeg4",
-        "wmv1": "wmv1",
-        "wmv2": "wmv2",
-    }
-    return mapping.get(codec, codec)
+    """Map an ffmpeg encoder name to the codec family ffprobe will report.
+
+    Delegates to encoders.codec_family so the contract check and the on-screen
+    codec label can never disagree.
+    """
+    return codec_family(codec)
+
+
+def _chapters_path_for(plan: Plan, defaults: dict) -> Path | None:
+    """Write the FFMETADATA sidecar for a variant that declares chapters.
+
+    Written here rather than in encoders.py so the builders stay pure arg-builders.
+    The sidecar is kept as a build artifact so the NFO's recorded command can be
+    pasted and re-run as-is.
+    """
+    spec = chapters_mod.spec_for(plan.variant)
+    if not spec:
+        return None
+    path = GENERATED_DIR / "_chapters" / f"{plan.variant['name']}.ffmeta"
+    duration = effective_duration(plan.variant, defaults)
+    return chapters_mod.write_ffmetadata(path, spec, duration)
 
 
 def _build_command(plan: Plan, defaults: dict) -> tuple[list[str], Path]:
     """Return (ffmpeg_args, primary_output_path_for_probe)."""
     v = plan.variant
+    chapters_path = _chapters_path_for(plan, defaults)
     if plan.kind == "video":
-        return build_video(v, defaults, SOURCES_DIR, plan.out_path), plan.out_path
+        return build_video(v, defaults, SOURCES_DIR, plan.out_path, chapters_path), plan.out_path
     if plan.kind == "audio":
         return build_audio_only(v, defaults, SOURCES_DIR, plan.out_path), plan.out_path
     if plan.kind == "subtitle_external":
@@ -303,7 +353,7 @@ def _build_command(plan: Plan, defaults: dict) -> tuple[list[str], Path]:
         args, manifest = build_stream(v, defaults, SOURCES_DIR, plan.out_path)
         return args, manifest
     if plan.kind == "edge":
-        return build_edge(v, defaults, SOURCES_DIR, plan.out_path), plan.out_path
+        return build_edge(v, defaults, SOURCES_DIR, plan.out_path, chapters_path), plan.out_path
     raise ValueError(f"no command builder for kind: {plan.kind}")
 
 
@@ -322,7 +372,7 @@ def _should_skip(plan: Plan, *, force: bool) -> bool:
         out_mtime = plan.out_path.stat().st_mtime
 
     # Invalidate when any source (including synthesized ones) is newer than the output.
-    for src_name in ("source_master.mov", "source_audio.wav", "source_sub.ass"):
+    for src_name in _source_names(_SOURCE_DEFAULTS):
         src = SOURCES_DIR / src_name
         if src.exists() and src.stat().st_mtime > out_mtime:
             return False
@@ -354,6 +404,51 @@ def _truncate_file(path: Path, percent: int) -> None:
     log.info("truncated %s to %d%% (%d bytes)", path.name, percent, target)
 
 
+def _apply_rotation(path: Path, degrees: int, timeout: int) -> None:
+    """Stamp a display-matrix rotation onto an existing file.
+
+    ffmpeg 8 ignores `-metadata:s:v rotate=` — it writes no side data at all. The only
+    working route is a stream-copy remux with the input-side -display_rotation flag,
+    so this runs as a post-encode step rather than part of the encode.
+    """
+    # Keep the real extension: ffmpeg selects the muxer from it, and a ".tmp" suffix
+    # fails with "Error initializing the muxer".
+    tmp = path.with_name(f"{path.stem}.rot-tmp{path.suffix}")
+    args = ["-display_rotation", str(degrees), "-i", str(path), "-c", "copy", str(tmp)]
+    try:
+        run_ffmpeg(args, timeout=timeout)
+        tmp.replace(path)
+        log.info("applied %d degree rotation to %s", degrees, path.name)
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
+def _probe_dash_stream(init: Path) -> dict:
+    """Probe one DASH stream by joining its init segment to its first media chunk.
+
+    An init segment carries no frames, so ffprobe falls back to the movie timescale
+    and reports nonsense rates such as 12288/1 with avg_frame_rate 0/0. Prepending the
+    init to a single chunk gives the true rate. Falls back to the init alone if no
+    chunk is present.
+    """
+    stream_id = init.stem.split("-", 1)[1] if "-" in init.stem else ""
+    chunks = sorted(init.parent.glob(f"chunk-{stream_id}-*.m4s")) if stream_id else []
+    if not chunks:
+        return ffprobe(init)
+    fd, tmp_name = tempfile.mkstemp(suffix=".m4s")
+    tmp = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "wb") as out:
+            out.write(init.read_bytes())
+            out.write(chunks[0].read_bytes())
+        return ffprobe(tmp)
+    except (OSError, FFExecError) as e:
+        log.warning("dash chunk probe failed for %s (%s); using init segment only", init.name, e)
+        return ffprobe(init)
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
 def _probe_dash(manifest_path: Path) -> dict:
     """ffprobe in ffmpeg 8.x has no DASH demuxer — merge probes of each init segment instead."""
     out_dir = manifest_path.parent
@@ -364,14 +459,36 @@ def _probe_dash(manifest_path: Path) -> dict:
         if child.is_file():
             total_size += child.stat().st_size
     for init in sorted(out_dir.glob("init-*.m4s")):
-        probe = ffprobe(init)
+        probe = _probe_dash_stream(init)
         merged_streams.extend(probe.get("streams", []))
         if not base_format:
             base_format = dict(probe.get("format", {}) or {})
     base_format["format_name"] = "dash"
     base_format["filename"] = str(manifest_path)
     base_format["size"] = str(total_size)
+    # The probe covers one init segment plus one chunk, so its duration is that chunk's,
+    # not the presentation's. The MPD carries the real total.
+    total_duration = _mpd_duration(manifest_path)
+    if total_duration is not None:
+        base_format["duration"] = f"{total_duration:.6f}"
     return {"streams": merged_streams, "format": base_format}
+
+
+def _mpd_duration(manifest_path: Path) -> float | None:
+    """Read mediaPresentationDuration from a DASH manifest as seconds."""
+    try:
+        text = manifest_path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    match = re.search(r'mediaPresentationDuration="([^"]+)"', text)
+    if not match:
+        return None
+    # ISO-8601 duration, e.g. PT5M0.0S
+    iso = re.match(r"P(?:(\d+)D)?T(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?", match.group(1))
+    if not iso:
+        return None
+    days, hours, minutes, seconds = (float(g) if g else 0.0 for g in iso.groups())
+    return days * 86400 + hours * 3600 + minutes * 60 + seconds
 
 
 def _probe_for(plan: Plan) -> dict:
@@ -398,11 +515,22 @@ def _execute(plan: Plan, defaults: dict, *, dry_run: bool, force: bool, ffmpeg_v
         if errs:
             return Outcome(plan=plan, status="contract_failed", message="; ".join(errs), probe=probe)
 
-        _write_nfo_for(plan, probe=probe, ffmpeg_cmd=None, ffmpeg_version=ffmpeg_version, extra_source=src)
+        _write_nfo_for(plan, probe=probe, ffmpeg_cmd=None, ffmpeg_version=ffmpeg_version,
+                       extra_source=src, overlay=defaults.get("overlay"))
         return Outcome(plan=plan, status="generated", probe=probe)
 
     if _should_skip(plan, force=force):
         return Outcome(plan=plan, status="skipped", message="output and nfo already present")
+
+    wanted = effective_duration(plan.variant, defaults)
+    if wanted > int(defaults["duration_seconds"]):
+        return Outcome(
+            plan=plan,
+            status="failed",
+            message=(f"variant duration {wanted}s exceeds the source duration "
+                     f"{defaults['duration_seconds']}s; raise --duration or lower the variant's "
+                     f"duration_seconds"),
+        )
 
     args, probe_target = _build_command(plan, defaults)
     if dry_run:
@@ -425,6 +553,13 @@ def _execute(plan: Plan, defaults: dict, *, dry_run: bool, force: bool, ffmpeg_v
     if "truncated" in flags and truncate_pct is not None and plan.kind != "stream":
         _truncate_file(plan.out_path, truncate_pct)
 
+    rotation = (plan.variant.get("video") or {}).get("rotate")
+    if rotation and plan.kind != "stream":
+        try:
+            _apply_rotation(plan.out_path, int(rotation), ff_timeout)
+        except FFExecError as e:
+            return Outcome(plan=plan, status="failed", message=f"rotation remux failed: {e}")
+
     probe = _probe_for(plan)
     errs = _verify_contract(plan, probe)
     if "truncated" in flags:
@@ -438,8 +573,22 @@ def _execute(plan: Plan, defaults: dict, *, dry_run: bool, force: bool, ffmpeg_v
             probe=probe,
         )
 
-    _write_nfo_for(plan, probe=probe, ffmpeg_cmd=["ffmpeg", *args], ffmpeg_version=ffmpeg_version)
+    _write_nfo_for(plan, probe=probe, ffmpeg_cmd=["ffmpeg", *args], ffmpeg_version=ffmpeg_version,
+                   overlay=defaults.get("overlay"))
     return Outcome(plan=plan, status="generated", ffmpeg_cmd=["ffmpeg", *args], probe=probe)
+
+
+def _overlay_record(plan: Plan, overlay: dict | None) -> dict:
+    """Describe what the on-screen overlay carries for this variant.
+
+    Variants with no video stream, external copies, and per-variant opt-outs all
+    record an explicit disabled state rather than being left blank.
+    """
+    if plan.kind in ("audio", "subtitle_external", "external"):
+        return {"enabled": "false", "reason": "no video stream" if plan.kind != "external" else "external copy"}
+    if plan.variant.get("burn_in") is False:
+        return {"enabled": "false", "reason": "burn_in disabled for this variant"}
+    return describe_overlay(overlay or {})
 
 
 def _write_nfo_for(
@@ -449,19 +598,28 @@ def _write_nfo_for(
     ffmpeg_cmd: list[str] | None,
     ffmpeg_version: str,
     extra_source: Path | None = None,
+    overlay: dict | None = None,
 ) -> None:
     v = plan.variant
     hdr = (v.get("video") or {}).get("hdr") if isinstance(v.get("video"), dict) else None
 
     source_refs: list[dict] = []
-    for key, fname in (
-        ("source_video", "source_master.mov"),
-        ("source_audio", "source_audio.wav"),
-        ("source_subtitle", "source_sub.ass"),
+    for key, fname in zip(
+        ("source_video", "source_audio", "source_subtitle"),
+        _source_names(_SOURCE_DEFAULTS),
     ):
         src = SOURCES_DIR / fname
         if src.exists() and plan.kind != "external":
             source_refs.append({"kind": key, "file": src.name, "sha256": _sha256(src)})
+    if plan.kind != "external":
+        # Record any user-supplied stills that produced the master's picture, so a
+        # swapped image is detectable from the NFO alone.
+        for image in list_source_images(SOURCES_DIR):
+            source_refs.append({
+                "kind": "source_image",
+                "file": image.name,
+                "sha256": _sha256(image),
+            })
     if extra_source is not None:
         source_refs.append({
             "kind": "external",
@@ -494,8 +652,40 @@ def _write_nfo_for(
         hdr=hdr if isinstance(hdr, dict) else None,
         output_sha256=output_sha,
         output_size=output_size,
+        overlay=_overlay_record(plan, overlay),
     )
     write_nfo(plan.nfo_path, payload)
+
+
+def _refresh_nfos(plans: list[Plan], defaults: dict, ffmpeg_version: str) -> int:
+    """Rewrite every NFO from the outputs already on disk, without re-encoding.
+
+    Metadata-only fixes (a new NFO field, a corrected derivation) would otherwise
+    need a full rebuild, which costs hours for a field that takes a probe to compute.
+    The `<command>` element is dropped because the original arguments are not
+    recoverable here; a real build restores it.
+    """
+    written = 0
+    for plan in plans:
+        target = _probe_target(plan)
+        if not target.exists():
+            log.info("skip (not built): %s", plan.variant["name"])
+            continue
+        try:
+            probe = _probe_for(plan)
+        except (FFExecError, FileNotFoundError) as e:
+            log.error("probe failed for %s: %s", plan.variant["name"], e)
+            continue
+        extra = None
+        if plan.kind == "external":
+            src = Path(plan.variant["source_path"])
+            extra = src if src.is_absolute() else ROOT / src
+        _write_nfo_for(
+            plan, probe=probe, ffmpeg_cmd=None, ffmpeg_version=ffmpeg_version,
+            extra_source=extra, overlay=defaults.get("overlay"),
+        )
+        written += 1
+    return written
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
@@ -512,16 +702,29 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
                    help="Override defaults.duration_seconds in minutes (0.5 = 30s, 5 = 5min).")
     p.add_argument("--jobs", "-j", type=int, default=1,
                    help="Parallel worker processes (default 1 = serial).")
+    p.add_argument("--no-burn-in", action="store_true",
+                   help="Disable the on-screen PTS / media-info overlay for this run.")
+    p.add_argument("--refresh-nfo", action="store_true",
+                   help="Rewrite NFOs from existing outputs without re-encoding anything.")
     p.add_argument("-v", "--verbose", action="store_true", help="Verbose logging.")
     return p.parse_args(argv)
 
 
+def _overlay_settings(cfg: dict, *, disabled: bool) -> dict:
+    """Resolve on-screen overlay settings from the matrix, honoring --no-burn-in.
+
+    Absent config means disabled, so an older matrix keeps its current behavior.
+    """
+    overlay = dict((cfg.get("defaults") or {}).get("overlay") or {})
+    overlay.setdefault("enabled", False)
+    if disabled:
+        overlay["enabled"] = False
+    return overlay
+
+
 def _missing_sources() -> list[Path]:
-    return [p for p in (
-        SOURCES_DIR / "source_master.mov",
-        SOURCES_DIR / "source_audio.wav",
-        SOURCES_DIR / "source_sub.ass",
-    ) if not p.exists()]
+    return [p for p in (SOURCES_DIR / n for n in _source_names(_SOURCE_DEFAULTS))
+            if not p.exists()]
 
 
 def _print_check(plans: list[Plan]) -> int:
@@ -580,20 +783,44 @@ def main(argv: list[str] | None = None) -> int:
         defaults["duration_seconds"] = int(round(ns.duration_minutes * 60))
     log.info("target duration: %d seconds", defaults["duration_seconds"])
 
+    overlay = _overlay_settings(cfg, disabled=ns.no_burn_in)
+    defaults["overlay"] = overlay
+    if overlay.get("enabled"):
+        if ns.check or ns.dry_run:
+            log.info("on-screen overlay: enabled (not executing)")
+        else:
+            try:
+                require_filters("drawtext")
+            except FFCapabilityMissing as e:
+                log.error("precondition failed: %s", e)
+                return 2
+            log.info("on-screen overlay: enabled")
+    else:
+        log.info("on-screen overlay: disabled")
+
     if ns.bootstrap:
-        ensure_sources(SOURCES_DIR, duration=defaults["duration_seconds"])
+        ensure_sources(SOURCES_DIR, duration=defaults["duration_seconds"], overlay=overlay,
+                       image_mode=defaults.get("image_mode", "auto"),
+                       image_hold_seconds=defaults.get("image_hold_seconds", 5),
+                       source_audio=defaults.get("source_audio", "source_audio.wav"))
 
     missing = _missing_sources()
     is_real_run = not (ns.check or ns.dry_run)
     if missing and is_real_run:
         log.warning("missing sources — auto-bootstrapping synthetic test patterns")
-        ensure_sources(SOURCES_DIR, duration=defaults["duration_seconds"])
+        ensure_sources(SOURCES_DIR, duration=defaults["duration_seconds"], overlay=overlay,
+                       image_mode=defaults.get("image_mode", "auto"),
+                       image_hold_seconds=defaults.get("image_hold_seconds", 5),
+                       source_audio=defaults.get("source_audio", "source_audio.wav"))
     elif missing:
         log.warning("missing sources (run --bootstrap or supply them): %s",
                     [str(m) for m in missing])
     elif is_real_run:
         # Sources exist; if duration changed, refresh them so downstream outputs rebuild.
-        ensure_sources(SOURCES_DIR, duration=defaults["duration_seconds"])
+        ensure_sources(SOURCES_DIR, duration=defaults["duration_seconds"], overlay=overlay,
+                       image_mode=defaults.get("image_mode", "auto"),
+                       image_hold_seconds=defaults.get("image_hold_seconds", 5),
+                       source_audio=defaults.get("source_audio", "source_audio.wav"))
 
     plans = _all_plans(cfg)
     sections = {s.strip() for s in ns.only.split(",") if s.strip()} or None
@@ -602,6 +829,11 @@ def main(argv: list[str] | None = None) -> int:
 
     if ns.check:
         return _print_check(plans)
+
+    if ns.refresh_nfo:
+        count = _refresh_nfos(plans, defaults, _ffmpeg_version())
+        sys.stdout.write(f"refreshed {count} nfo file(s)\n")
+        return 0
 
     ffv = _ffmpeg_version()
     outcomes: list[Outcome] = []
@@ -662,6 +894,7 @@ def _write_build_manifest(cfg: dict, ffmpeg_version: str, outcomes: list["Outcom
         "python_version": sys.version.split()[0],
         "platform": f"{platform.system()} {platform.release()} {platform.machine()}",
         "matrix_sha256": matrix_sha,
+        "ffmpeg_path": resolve_binary(ffmpeg_bin()) or ffmpeg_bin(),
         "duration_seconds": duration_seconds,
         "entry_counts": {
             status: sum(1 for o in outcomes if o.status == status)

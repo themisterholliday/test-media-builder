@@ -2,7 +2,7 @@ PY ?= python3
 ROOT := $(shell pwd)
 JOBS ?= 1
 
-.PHONY: help bootstrap generate check clean clean-generated dry-run force rebuild verify manifest thumbs all
+.PHONY: help bootstrap generate check clean clean-generated dry-run force rebuild verify manifest thumbs library all
 
 help:
 	@echo "Targets:"
@@ -15,11 +15,13 @@ help:
 	@echo "  verify          post-creation validation (decode + contract + nfo + bitstream)"
 	@echo "  manifest        write generated/manifest.json index"
 	@echo "  thumbs          extract per-variant thumbnails + contact sheet"
-	@echo "  all             generate + verify + manifest + thumbs"
+	@echo "  library         build the faceted show tree under library/ (run after generate)"
+	@echo "  all             generate + verify + manifest + thumbs + library"
 	@echo "  clean-generated remove everything under generated/"
 	@echo "  clean           remove generated/ and synthesized sources"
 	@echo ""
 	@echo "  Flags (all targets):  ONLY=video,edge  VARIANT=h264_mp4_baseline  JOBS=4"
+	@echo "  library flags:        LINK_MODE=hardlink|symlink|copy  FACETS=codec,container,..."
 
 bootstrap:
 	$(PY) -m scripts.generate --bootstrap --check
@@ -45,12 +47,15 @@ manifest:
 thumbs:
 	$(PY) -m scripts.thumbnails $(if $(ONLY),--only $(ONLY)) $(if $(VARIANT),--variant $(VARIANT))
 
-all: generate verify manifest thumbs
+library:
+	$(PY) -m scripts.library $(if $(LINK_MODE),--link-mode $(LINK_MODE)) $(if $(FACETS),--facets $(FACETS))
+
+all: generate verify manifest thumbs library
 
 rebuild: clean-generated generate
 
 clean-generated:
-	rm -rf generated
+	rm -rf generated library
 
 clean: clean-generated
 	rm -f sources/source_master.mov sources/source_audio.wav sources/source_sub.ass

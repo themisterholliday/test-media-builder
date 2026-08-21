@@ -51,7 +51,10 @@ def _extract_thumb(plan, at: float = 5.0) -> tuple[bool, str]:
     if not target.exists():
         return False, f"missing: {target}"
     out_path = _thumb_path_for(plan)
-    vf = f"scale={THUMB_WIDTH}:-1:flags=lanczos"
+    # Correct for non-square pixels first. Without this an anamorphic file (DAR 16:9,
+    # SAR 64:45) thumbnails as 320x256 rather than 320x180 — the contact sheet would
+    # misrepresent exactly the variants that exist to test geometry.
+    vf = f"scale=iw*sar:ih,scale={THUMB_WIDTH}:-1:flags=lanczos,setsar=1"
 
     def _try(seek: float, extra_vf: str = "") -> bool:
         full_vf = f"{extra_vf},{vf}" if extra_vf else vf
@@ -84,29 +87,45 @@ def _extract_thumb(plan, at: float = 5.0) -> tuple[bool, str]:
     return False, "all seek attempts failed"
 
 
-def _contact_sheet(thumbs: list[Path], out_path: Path) -> None:
-    """Tile individual thumbnails into one contact sheet using a temporary concat list."""
-    if not thumbs:
+def tile_images(images: list[Path], out_path: Path, *, cols: int = CONTACT_COLS,
+                cell_width: int = THUMB_WIDTH, timeout: int = 180) -> None:
+    """Tile images into a single sheet, padding each to a uniform cell.
+
+    Each image is opened as its own input and padded before tiling. The concat
+    demuxer cannot be used: thumbnails keep their source aspect, so heights differ
+    (16:9, 4:3, 9:16), and concat silently drops every entry after the first size
+    change — which produced a half-empty sheet.
+    """
+    if not images:
         return
-    rows = math.ceil(len(thumbs) / CONTACT_COLS)
-    list_path = out_path.parent / "_tile_list.txt"
-    list_path.write_text(
-        "\n".join(f"file '{t.resolve()}'\nduration 1" for t in thumbs) + f"\nfile '{thumbs[-1].resolve()}'\n",
-        encoding="utf-8",
-    )
-    try:
-        args = [
-            "-f", "concat",
-            "-safe", "0",
-            "-i", str(list_path),
-            "-vf", f"tile={CONTACT_COLS}x{rows}:margin=4:padding=4:color=black",
-            "-frames:v", "1",
-            "-qscale:v", "3",
-            str(out_path),
-        ]
-        run_ffmpeg(args, timeout=120)
-    finally:
-        list_path.unlink(missing_ok=True)
+    rows = math.ceil(len(images) / cols)
+    cell_h = round(cell_width * 9 / 16)
+
+    args: list[str] = []
+    for image in images:
+        args += ["-i", str(image)]
+    chains = [
+        f"[{i}:v]scale={cell_width}:{cell_h}:force_original_aspect_ratio=decrease,"
+        f"pad={cell_width}:{cell_h}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1[t{i}]"
+        for i in range(len(images))
+    ]
+    labels = "".join(f"[t{i}]" for i in range(len(images)))
+    chains.append(f"{labels}concat=n={len(images)}:v=1:a=0[cat]")
+    chains.append(f"[cat]tile={cols}x{rows}:margin=4:padding=4:color=black[out]")
+
+    args += [
+        "-filter_complex", ";".join(chains),
+        "-map", "[out]",
+        "-frames:v", "1",
+        "-qscale:v", "3",
+        str(out_path),
+    ]
+    run_ffmpeg(args, timeout=timeout)
+
+
+def _contact_sheet(thumbs: list[Path], out_path: Path) -> None:
+    """Tile every variant thumbnail into one contact sheet."""
+    tile_images(thumbs, out_path)
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:

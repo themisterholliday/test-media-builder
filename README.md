@@ -14,6 +14,14 @@ Everything is declared in one config file (`config/media_matrix.json`) and produ
 ## Requirements
 
 - **ffmpeg 6.0+** (tested on 8.1) with these encoders: `libx264`, `libx265`, `libsvtav1`, `libvpx-vp9`, `libopus`, `libmp3lame`, `aac`, `ac3`, `eac3`, `flac`, `pcm_s16le`. Check with `ffmpeg -encoders | grep -E 'libx264|libx265|libsvtav1'`.
+- **An ffmpeg built with `libfreetype`** — required for the on-screen overlay, which uses the `drawtext` filter. The stock Homebrew `ffmpeg` formula **omits it**; install `ffmpeg-full` instead:
+
+  ```bash
+  brew install ffmpeg-full          # bottled, keg-only, does not replace your ffmpeg
+  ffmpeg -h filter=drawtext         # "Unknown filter" means you have the wrong build
+  ```
+
+  `config/media_matrix.json` points at it via `defaults.ffmpeg_bin` / `ffprobe_bin`. Override per run with the `FFMPEG_BIN` / `FFPROBE_BIN` environment variables, or turn the overlay off entirely with `--no-burn-in`. The generator checks for `drawtext` before it starts and fails with a clear message rather than part-way through the matrix.
 - **Python 3.9+** — standard library only, no third-party deps.
 - **~8 GB** of disk space for the default 5-minute full build. (At `--duration 60` it's ~1.5 GB; at `--duration 10` it's ~200 MB.)
 - Optional: **GNU Make** for the convenience targets in `Makefile`.
@@ -29,6 +37,7 @@ python3 -m scripts.generate --bootstrap --jobs 4
 python3 -m scripts.verify
 python3 -m scripts.manifest
 python3 -m scripts.thumbnails
+python3 -m scripts.library
 ```
 
 **Default duration is 5 minutes** (300 s). Use `--duration SECONDS` or `--duration-minutes MINUTES` to override, e.g. `python3 -m scripts.generate --duration 30` for a fast CI/smoke build. Changing the duration regenerates the synthesized sources and invalidates any existing outputs (via mtime comparison) so the whole library stays consistent.
@@ -39,14 +48,14 @@ The full 5-minute build takes a few minutes with `JOBS=4`. A 30-second build com
 
 | Section   | Count | What it covers                                                                                                                                                                                                                                                    |
 | --------- | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| video     | 22    | H.264 / HEVC / AV1 / VP9 / **MPEG-2** / **MPEG-4 ASP (Xvid)** / **WMV2** · in MP4/MKV/TS/WebM/**AVI**/**WMV** · 8-bit + 10-bit · SDR / HDR10 / HLG · 24/25/29.97/30/60 fps · 16:9 / 4:3 / 9:16 / **anamorphic 64:45** · **progressive + 1080i + 480i interlaced** |
-| audio     | 14    | AAC (mono/stereo/5.1/**7.1**), AC-3 5.1, E-AC-3 5.1, MP3, Opus, FLAC (16-bit + **24-bit 96k / 192k**), PCM (s16le stereo → **s24le stereo** → **7.1.4** → **9.1.4 Atmos-style bed**), **MP2**, **WMA2**                                                           |
+| video     | 48    | **Chapters (4)** · H.264 / HEVC / AV1 / VP9 / **MPEG-2** / **MPEG-4 ASP (Xvid)** / **WMV2** · in MP4/MKV/TS/WebM/**AVI**/**WMV** · 8-bit + 10-bit · SDR / HDR10 / HLG · 24/25/29.97/30/60 fps · 16:9 / 4:3 / 9:16 / **anamorphic 64:45** · **progressive + 1080i + 480i interlaced** |
+| audio     | 18    | AAC (mono/stereo/5.1/**7.1**), AC-3 5.1, E-AC-3 5.1, MP3, Opus, FLAC (16-bit + **24-bit 96k / 192k**), PCM (s16le stereo → **s24le stereo** → **7.1.4** → **9.1.4 Atmos-style bed**), **MP2**, **WMA2**                                                           |
 | subtitles | 6     | External SRT / WebVTT / ASS · embedded SRT / ASS / mov_text                                                                                                                                                                                                       |
 | streams   | 2     | HLS (m3u8 + TS segments) · DASH (mpd + fMP4 chunks)                                                                                                                                                                                                               |
-| edge      | 14    | No audio, audio-only, multi-audio, multi-subtitle (with forced flag), VFR, broken PTS, low/high bitrate, Annex B, AVCC, fragmented MP4, missing metadata, edit list, truncated file                                                                               |
-| external  | 8     | Slots for Dolby Vision P5, DV P8.1, HDR10+, DTS-HD MA, TrueHD/Atmos, E-AC-3 JOC, real-world 4K HEVC, **VC-1 Blu-ray** — must be dropped in manually                                                                                                               |
+| edge      | 25    | No audio, audio-only, multi-audio, multi-subtitle (with forced flag), VFR, broken PTS, low/high bitrate, Annex B, AVCC, fragmented MP4, missing metadata, edit list, truncated file, **6 malformed-chapter cases**                                                                               |
+| external  | 10    | Slots for Dolby Vision P5, DV P8.1, HDR10+, DTS-HD MA, TrueHD/Atmos, E-AC-3 JOC, real-world 4K HEVC, **VC-1 Blu-ray** — must be dropped in manually                                                                                                               |
 
-**Total: 66 declared variants · 58 ffmpeg-synthesizable · 8 external slots awaiting user-supplied files.**
+**Total: 109 declared variants · 99 ffmpeg-synthesizable · 10 external slots awaiting user-supplied files.**
 
 See [docs/MATRIX.md](docs/MATRIX.md) for the full catalog with rationale per entry.
 
@@ -64,6 +73,9 @@ All commands support `--only SECTION[,SECTION…]` and `--variant NAME[,NAME…]
 | `python -m scripts.generate --duration SECONDS`   | Override target output length. Regenerates sources + invalidates outputs if the duration has changed since the last build.               |
 | `python -m scripts.generate --duration-minutes N` | Same as `--duration`, but in minutes. `--duration-minutes 5` == `--duration 300`.                                                        |
 | `python -m scripts.generate --jobs N`             | Run N ffmpeg workers in parallel (default 1).                                                                                            |
+| `python -m scripts.generate --no-burn-in`         | Build without the on-screen PTS / media-info overlay, for one run.                                                                       |
+| `python -m scripts.generate --refresh-nfo`        | Rewrite NFOs from existing outputs without re-encoding. For metadata-only fixes.                                                          |
+| `python -m scripts.library`                       | Build the faceted show tree under `library/`. Run after every generate.                                                                   |
 | `python -m scripts.verify`                        | Post-creation validation — decode smoke test, contract re-check, NFO parse, bitstream assertions. Writes `generated/verify_report.json`. |
 | `python -m scripts.verify --no-decode`            | Skip the decode-only pass (fastest path if you just want structural checks).                                                             |
 | `python -m scripts.manifest`                      | Emit `generated/manifest.json` — flat machine-readable index.                                                                            |
@@ -96,8 +108,8 @@ generated/
 │   ├── h264_mp4_baseline.nfo       ← sibling Kodi-compatible NFO
 │   ├── hevc_mp4_10bit_hdr10_bt2020.mp4
 │   ├── hevc_mp4_10bit_hdr10_bt2020.nfo
-│   └── …                            (17 video variants total)
-├── audio/                           (7 audio-only variants)
+│   └── …                            (48 video variants total)
+├── audio/                           (14 audio-only variants)
 ├── subtitles/                       (6 subtitle variants, mix of external + embedded)
 ├── streams/
 │   ├── hls_h264_aac/
@@ -109,11 +121,11 @@ generated/
 │   │   ├── init-0.m4s init-1.m4s
 │   │   └── chunk-0-00001.m4s … chunk-1-00003.m4s
 │   └── dash_h264_aac.nfo
-├── edge/                            (14 edge-case variants)
-├── external/                        (0–7 variants, depending on which external samples you've dropped in)
+├── edge/                            (25 edge-case variants)
+├── external/                        (0–10 variants, depending on which external samples you've dropped in)
 ├── _thumbs/
 │   ├── h264_mp4_baseline.jpg        ← one thumbnail per video at t=5s
-│   ├── …                            (34 thumbnails total for the full matrix)
+│   ├── …                            (50 thumbnails total for the full matrix)
 │   └── contact_sheet.jpg            ← 4-col grid of all thumbnails
 ├── manifest.json                    ← flat machine-readable index of every entry
 ├── verify_report.json               ← pass/fail per variant with specific check results
@@ -121,6 +133,157 @@ generated/
 ```
 
 Every media file has a **sibling `.nfo`** with the same basename. Kodi/Plex/Jellyfin scrapers read the top-half `<movie>` schema; custom test tooling reads the `<testlib:testlib>` extension for edge flags, the ffmpeg command used, source/output SHAs, and HDR details. See [docs/ARCHITECTURE.md#nfo-schema](docs/ARCHITECTURE.md#nfo-schema) for the full schema.
+
+## On-screen overlay
+
+Every generated video carries two burned-in text blocks, so a single screenshot tells you which file you are looking at and exactly where in the timeline you are.
+
+**Top-left — per-frame timing**, burned into `source_master.mov` once and inherited by every variant:
+
+```
+PTS 7.000000  FRAME 168
+TC  00:00:07.000
+```
+
+**Bottom-left — per-file identity**, drawn during each variant's encode:
+
+```
+h264_mp4_baseline
+h264 / mp4 / 1280x720@24 / aac 2ch
+```
+
+What this buys you: read the burned PTS off a paused frame and compare it against the player's reported position to catch seek drift; confirm from a screenshot that the server served the variant you asked for rather than a transcode of a different one.
+
+The overlay is drawn **before** interlacing and before any `setsar`, so it is never combed by field interleaving nor stretched by an anamorphic display aspect. On the three timestamp edge cases it deliberately shows the *pre-remap source* time, which is what makes the defect visible:
+
+| Variant | What the overlay reveals |
+| --- | --- |
+| `edge_edit_list` | The 0.5 s `itsoffset` shows as a gap between burned PTS and player position. |
+| `edge_variable_fps` | The `setpts` ramp is visible frame by frame against a linear source clock. |
+| `edge_broken_pts` | The injected 5 s jump appears as a discontinuity the burned clock does not share. |
+
+Configure it under `defaults.overlay` in `config/media_matrix.json` (`enabled`, `font_file`, `font_size_ratio`, `font_color`, `box_color`, `margin_ratio`). Disable it for one run with `--no-burn-in`, or for a single variant with `"burn_in": false` on that matrix entry. Variants with no video stream — audio-only, external subtitles — and the verbatim `external_*` copies never receive it.
+
+> `verify` compares each NFO's recorded overlay state against what the matrix declares, so a library built with `--no-burn-in` while the config still says `"enabled": true` is reported as a mismatch — that is the check working. To turn the overlay off permanently, set `defaults.overlay.enabled` to `false` rather than relying on the flag.
+
+## Custom source imagery
+
+Drop image files into `sources/images/` and the synthetic master is built from them instead of the `testsrc2` gradient, so the library exercises realistic picture detail:
+
+```bash
+cp ~/my_test_charts/*.png sources/images/
+python3 -m scripts.generate --bootstrap --force
+```
+
+Each image is scaled to fit, padded to the master resolution (aspect preserved, no distortion), held for `defaults.image_hold_seconds` (default 5), and the set is cycled until the target duration is filled. Supported: PNG, JPEG, WebP, BMP, TIFF. Order is by filename, so prefix with `01_`, `02_` to control sequence.
+
+`defaults.image_mode` controls this: `auto` (default — use images when present, otherwise the test pattern), `slideshow` (require images, warn and fall back if the directory is empty), or `none` (always the test pattern).
+
+Changing the image set changes the master's picture without changing its duration, so the set is fingerprinted by name and size in `sources/.synthetic_sources.json`. Swap an image and the master regenerates, which cascades a rebuild of every downstream output through the existing mtime check. Each image's SHA-256 is recorded in every NFO, and the set fingerprint appears in `manifest.json` under `_meta.source_images_sha256`.
+
+> Note: `testsrc2` draws its own small built-in counter. Custom imagery replaces that pattern, so the burned-in overlay above becomes the only on-screen clock — which is why `drawtext` is a hard requirement once you use your own images.
+
+## Geometry and aspect ratio
+
+Every variant's **display** aspect is asserted at verify time, because it is not the same thing as its coded shape.
+
+> **The trap this library was caught by.** ffmpeg's `scale` filter rewrites SAR to preserve the *source* display aspect. Scaling a 16:9 master to 720×540 silently produces SAR 4:3 and **DAR 16:9** — not the 4:3 the dimensions imply. Three variants shipped for months claiming ratios they did not have. The chain now ends in `setsar=1` unless a variant declares `video.sar` deliberately, so a coded frame means what it looks like.
+
+```
+scale=720:540           ->  SAR 4:3, DAR 16:9    ← the bug
+scale=720:540,setsar=1  ->  SAR 1:1, DAR 4:3     ← intended
+```
+
+Coverage now spans **2.39:1 scope, 1.85:1 flat, 2:1 Univisium, 16:9, 20:11, 11:9, 4:3, 1:1 square and 9:16 vertical**, where before 46 of 47 files displayed 16:9.
+
+| Group | Variants |
+| --- | --- |
+| Cinema | `aspect_scope_239` (1920×804), `aspect_flat_185`, `aspect_univisium_200` |
+| Square / vertical | `aspect_square_1_1`, `aspect_vertical_9_16` |
+| **Baked-in bars** | `aspect_letterbox_239`, `aspect_pillarbox_43` — the frame reports 16:9 and only the picture is scope or 4:3, which is what auto-crop logic trips on |
+| Anamorphic | `aspect_anamorphic_hdv` (SAR 4:3), `_dvcpro` (SAR 3:2), `_ntsc_wide` (SAR 40:33 → 20:11) |
+| Rotation | `edge_rotate_90` / `_180` / `_270` — real display-matrix side data, as phones record portrait |
+| Conflict | `edge_aspect_conflict` — coded 1280×720 but the container declares 4:3 |
+
+Two implementation notes worth knowing. `-metadata:s:v rotate=` is inert in ffmpeg 8; rotation is stamped by a stream-copy remux with `-display_rotation` as a post-encode step. And ffprobe normalises rotation into −180…180, so 270 reports as `-90`.
+
+## Cadence, chroma and colour
+
+- **23.976 fps** (`h264_mp4_23976`) — the standard film rate, previously absent, plus 48 and 50 fps.
+- **3:2 pulldown** (`mpeg2_ts_telecine`) — 23.976 film carried as 29.97 interlaced; needs inverse telecine to recover.
+- **4:2:2 10-bit, 4:4:4 8-bit, 12-bit HEVC** — the library was otherwise entirely 4:2:0.
+- **Full-range levels** (`h264_mp4_full_range`, which ffmpeg represents as `yuvj420p`) and **BT.601 matrix** (`h264_mp4_bt601`).
+
+## Per-variant duration
+
+A geometry or chroma test does not need five minutes. Any entry may declare `duration_seconds`, overriding `defaults.duration_seconds`:
+
+```json
+{ "name": "aspect_scope_239", "duration_seconds": 20, ... }
+```
+
+Geometry, chroma, colour and container variants build at 20 s; audio and A/V-sync ones at 60 s; everything else stays at the library default. A variant longer than the synthesized source is a hard error rather than a silently short file. Chapter specs scale to the variant's own duration, not the global one.
+
+## Chapters
+
+Ten variants carry chapter markers, written through an FFMETADATA sidecar kept at `generated/_chapters/<variant>.ffmeta` so the exact input is inspectable and the recorded ffmpeg command re-runs as-is.
+
+**Well-formed** — `chapters_mp4_10`, `chapters_mkv_10` (same ten chapters in both container models), `chapters_mkv_unicode` (accented, Japanese, Arabic, Greek and emoji titles — all verified to round-trip), and `chapters_mkv_100` for chapter-list and scrubber density.
+
+**Malformed** — the cases where playback bugs actually live. Each is a real muxer result, not a theory:
+
+| Variant | Authored | What the muxer actually did |
+| --- | --- | --- |
+| `edge_chapters_nonzero_start` | 3, first at 10% | 3 kept; unchaptered head preserved |
+| `edge_chapters_overlap` | 3 overlapping | 3 kept, overlaps intact |
+| `edge_chapters_zero_length` | 3, one zero-length | **2 kept** — one was dropped |
+| `edge_chapters_past_eof` | 2, last ends at 180% | 2 kept, end **clamped** to the duration |
+| `edge_chapters_out_of_order` | 3 descending | **1 kept** — the rest discarded |
+| `edge_chapters_stripped` | 5, then `-map_chapters -1` | 0 — strip path confirmed |
+
+`verify` holds the well-formed set to exact count, titles, ordering and bounds. For the malformed set it records what happened as a *warning* rather than a failure, because a muxer is entitled to normalise nonsense — the finding is what it chose to do.
+
+Declare chapters on any variant with a `chapters` block:
+
+```json
+{ "flags": ["chapters"],
+  "chapters": { "mode": "even", "count": 10, "title_prefix": "Chapter" } }
+```
+
+`mode` is `even` (split the duration into N) or `explicit` (an `entries` list). Explicit times default to `unit: "fraction"` of the total duration, so a spec stays meaningful whether you build at 30 s or 300 s.
+
+## Faceted library (`library/`)
+
+`generated/` is organised by build stage, which describes how a file was made rather than what it tests. `make library` projects the same files into `library/`, where each capability is a TV show and every variant carrying it is an episode:
+
+```
+library/
+├── Chapters/
+│   ├── tvshow.nfo                                        <tvshow>
+│   ├── poster.jpg                                        tiled from this show's episodes
+│   └── Season 01/
+│       ├── Chapters - S01E01 - chapters_mkv_10.mkv       hardlink
+│       ├── Chapters - S01E01 - chapters_mkv_10.nfo       <episodedetails>
+│       └── Chapters - S01E01 - chapters_mkv_10-thumb.jpg
+├── H.264 Video/  HEVC Video/  AV1 Video/  …
+├── MP4 Container/  MKV Container/  TS Container/  …
+├── AAC Audio/  AC3 Audio/  FLAC Audio/  …
+└── ASS Subtitles/  SRT Subtitles/  WebVTT Subtitles/
+```
+
+Currently **35 shows, 191 episodes**. Point your media server at `library/` — *not* at `generated/` as well, or every file appears twice.
+
+**Episodes are hardlinks, so the tree is free.** One file carries several names: `chapters_mp4_10.mp4` has `nlink=5` — the original plus H.264 Video, MP4 Container, AAC Audio and Chapters. `generated/` alone is 7.6 GB; `generated/` and `library/` together are still 7.6 GB. Total non-media overhead is 52 KB of NFOs.
+
+Hardlinks were chosen over symlinks because each path is a *real* file, so a server reading through a container bind mount or a network share resolves it — a symlink to a host path would dangle.
+
+> **Re-run `make library` after every `make generate`.** ffmpeg usually rewrites a file in place, which keeps existing links live, but anything that replaces the inode (notably `make clean-generated` followed by a rebuild) leaves links pointing at the old content. Each run compares inodes and relinks whatever is stale, and `make all` ends with `library` so the normal path cannot drift.
+
+Options: `--link-mode hardlink|symlink|copy`, `--facets codec,container,audio,subtitles,chapters`, `--min-episodes N` (15 shows currently have a single episode), `--no-posters`.
+
+Episode numbers are stable. They are stored in `library/.episode_map.json`, so adding a variant that sorts alphabetically first takes the next free number rather than renumbering everything after it. The tool also records what it created in `library/.library_state.json` and prunes only those paths — it never deletes a file it did not write.
+
+Streams are excluded: HLS and DASH outputs are directories, which cannot be hardlinked, and a `.mpd` is not a scraper-playable episode.
 
 ## Sources
 

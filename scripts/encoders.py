@@ -9,7 +9,26 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from .overlay import is_enabled as overlay_enabled, variant_overlay_filters
+
 log = logging.getLogger("encoders")
+
+# Encoder name -> the codec name ffprobe reports for it. Used for the contract
+# check in generate.py and for the codec label drawn on screen.
+_CODEC_FAMILIES: dict[str, str] = {
+    "libx264": "h264",
+    "libx265": "hevc",
+    "libaom-av1": "av1",
+    "libsvtav1": "av1",
+    "librav1e": "av1",
+    "libvpx-vp9": "vp9",
+    "libopus": "opus",
+    "libmp3lame": "mp3",
+    "mpeg2video": "mpeg2video",
+    "mpeg4": "mpeg4",
+    "wmv1": "wmv1",
+    "wmv2": "wmv2",
+}
 
 # Per-codec capability map. Governs which flags _common_video_args emits so
 # we don't pass x264-style options to codecs that reject them.
@@ -33,29 +52,128 @@ def _codec_caps(codec: str) -> set[str]:
     return CODEC_CAPABILITIES.get(codec, _DEFAULT_CAPS)
 
 
-def _duration_flag(defaults: dict) -> list[str]:
-    return ["-t", str(defaults["duration_seconds"])]
+def effective_duration(variant: dict | None, defaults: dict) -> int:
+    """Return the output length for a variant in seconds.
+
+    A variant may declare its own `duration_seconds` — a geometry or chroma test does
+    not need the full library duration. Falls back to the global default.
+    """
+    if variant:
+        own = variant.get("duration_seconds")
+        if own is not None:
+            return int(own)
+    return int(defaults["duration_seconds"])
+
+
+def _duration_flag(defaults: dict, variant: dict | None = None) -> list[str]:
+    return ["-t", str(effective_duration(variant, defaults))]
 
 
 def _scale_filter(width: int, height: int) -> str:
     return f"scale={width}:{height}:flags=lanczos"
 
 
-def _build_vf_chain(video: dict, width: int, height: int) -> str:
-    """Compose the -vf filter chain from scale + optional interlace + optional SAR."""
+def codec_family(codec: str) -> str:
+    """Map an ffmpeg encoder name to the codec family ffprobe reports."""
+    return _CODEC_FAMILIES.get(codec, codec)
+
+
+def overlay_lines_for(variant: dict, *, width: int, height: int, framerate) -> list[str]:
+    """Compose the static per-file text shown on screen.
+
+    Identifies the file from a single screenshot: name on the first line, then the
+    structural facts a playback bug most often turns on.
+    """
+    video = variant.get("video") or {}
+    fps = framerate if framerate is not None else ""
+    if isinstance(fps, float) and fps.is_integer():
+        fps = int(fps)
+    parts = [
+        codec_family(video.get("codec", "")) or "?",
+        variant.get("container", "?"),
+        f"{width}x{height}@{fps}",
+    ]
+
+    # Multi-track variants declare `audio_tracks` instead of a single `audio` block.
+    audio = variant.get("audio") or {}
+    audio_tracks = variant.get("audio_tracks") or []
+    if audio:
+        parts.append(f"{audio.get('codec', '?')} {audio.get('channels', '?')}ch")
+    elif audio_tracks:
+        codecs = ",".join(dict.fromkeys(t.get("codec", "?") for t in audio_tracks))
+        parts.append(f"{len(audio_tracks)} audio ({codecs})")
+    else:
+        parts.append("no audio")
+
+    subtitle_tracks = variant.get("subtitle_tracks") or []
+    if subtitle_tracks:
+        parts.append(f"{len(subtitle_tracks)} subs")
+    elif variant.get("embed") and variant.get("format"):
+        parts.append(f"sub {variant['format']}")
+
+    return [variant.get("name", "?"), " / ".join(parts)]
+
+
+def _build_vf_chain(
+    video: dict,
+    width: int,
+    height: int,
+    overlay_filters: list[str] | None = None,
+) -> str:
+    """Compose the -vf chain: scale, then overlay, then interlace and SAR.
+
+    The overlay is drawn before interlacing so it is not combed, and before setsar so
+    it is not stretched by an anamorphic display aspect.
+    """
     parts: list[str] = [_scale_filter(width, height)]
+    # Pad the picture out to a larger frame, baking in letterbox or pillarbox bars.
+    # width/height are the picture; pad_to is the coded frame around it.
+    pad = video.get("pad_to")
+    if pad:
+        pw, ph = int(pad["width"]), int(pad["height"])
+        parts.append(f"pad={pw}:{ph}:(ow-iw)/2:(oh-ih)/2:color=black")
+    if overlay_filters:
+        parts.extend(overlay_filters)
+    if video.get("telecine"):
+        # 3:2 pulldown — 23.976p carried inside a 29.97i stream.
+        parts.append(f"telecine=pattern={video['telecine']}")
     if video.get("interlace"):
         fps = video.get("interlace_fps", "59.94")
         parts.append(f"fps={fps}")
         parts.append("tinterlace=interleave_top")
         parts.append("setfield=tff")
-    if video.get("sar"):
-        parts.append(f"setsar={video['sar']}")
+    # Without this, ffmpeg's scale filter rewrites SAR to preserve the *source* display
+    # aspect, so scaling a 16:9 master to 720x540 silently yields DAR 16:9 rather than
+    # the 4:3 the dimensions imply. Declare a SAR to opt into anamorphic on purpose.
+    parts.append(f"setsar={video['sar']}" if video.get("sar") else "setsar=1")
     return ",".join(parts)
 
 
-def _common_video_args(video: dict, defaults: dict, *, width: int, height: int, framerate: int | float | None = None) -> list[str]:
-    """Produce the `-c:v ... -b:v ...` style args for a video stream."""
+def _variant_overlay(variant: dict | None, defaults: dict, *, width: int, height: int, framerate) -> list[str]:
+    """Return drawtext filters for a variant, honoring a per-variant burn_in opt-out."""
+    if variant is None or variant.get("burn_in") is False:
+        return []
+    overlay = defaults.get("overlay") or {}
+    if not overlay_enabled(overlay):
+        return []
+    lines = overlay_lines_for(variant, width=width, height=height, framerate=framerate)
+    return variant_overlay_filters(overlay, height, lines)
+
+
+def _common_video_args(
+    video: dict,
+    defaults: dict,
+    *,
+    width: int,
+    height: int,
+    framerate: int | float | None = None,
+    variant: dict | None = None,
+) -> list[str]:
+    """Produce the `-c:v ... -b:v ...` style args for a video stream.
+
+    Pass `variant` to draw the per-file information overlay. Omitting it produces the
+    same arguments as before, so a caller that has no variant context stays valid.
+    """
     codec = video["codec"]
     caps = _codec_caps(codec)
 
@@ -95,8 +213,12 @@ def _common_video_args(video: dict, defaults: dict, *, width: int, height: int, 
     if "keyint_min" in caps:
         args += ["-keyint_min", str(gop)]
 
-    args += ["-vf", _build_vf_chain(video, width, height)]
-    args += ["-r", str(framerate if framerate is not None else defaults["framerate"])]
+    effective_fps = framerate if framerate is not None else defaults["framerate"]
+    overlay_filters = _variant_overlay(
+        variant, defaults, width=width, height=height, framerate=effective_fps
+    )
+    args += ["-vf", _build_vf_chain(video, width, height, overlay_filters)]
+    args += ["-r", str(effective_fps)]
 
     hdr = video.get("hdr") or {}
     if hdr:
@@ -109,6 +231,11 @@ def _common_video_args(video: dict, defaults: dict, *, width: int, height: int, 
         if hdr.get("x265_params"):
             args += ["-x265-params", hdr["x265_params"]]
 
+    if video.get("color_range"):
+        args += ["-color_range", str(video["color_range"])]
+    if video.get("colorspace") and not hdr:
+        args += ["-colorspace", str(video["colorspace"])]
+
     if video.get("tag"):
         args += ["-tag:v", video["tag"]]
 
@@ -117,6 +244,9 @@ def _common_video_args(video: dict, defaults: dict, *, width: int, height: int, 
 
 def _common_audio_args(audio: dict) -> list[str]:
     args: list[str] = ["-c:a", audio["codec"]]
+    # dca and truehd are flagged experimental by ffmpeg and refuse to run without this.
+    if audio.get("strict"):
+        args += ["-strict", str(audio["strict"])]
     if audio.get("bitrate"):
         args += ["-b:a", audio["bitrate"]]
     if audio.get("channels"):
@@ -141,7 +271,8 @@ def _double_bitrate(bitrate: str) -> str:
         return bitrate
 
 
-def _audio_src_for_channels(sources_dir: Path, channels: int) -> tuple[list[str], int]:
+def _audio_src_for_channels(sources_dir: Path, channels: int,
+                            defaults: dict | None = None) -> tuple[list[str], int]:
     """Return ffmpeg input args plus the channel count of the synthesized source.
 
     Mono and stereo use the master stereo source (ffmpeg down-mixes to mono as needed).
@@ -149,7 +280,8 @@ def _audio_src_for_channels(sources_dir: Path, channels: int) -> tuple[list[str]
     encoder actually has N channels to compress.
     """
     if channels <= 2:
-        return ["-i", str(sources_dir / "source_audio.wav")], channels
+        name = (defaults or {}).get("source_audio", "source_audio.wav")
+        return ["-i", str(sources_dir / name)], channels
     layout = {
         3: "2.1",
         4: "quad",
@@ -166,7 +298,25 @@ def _audio_src_for_channels(sources_dir: Path, channels: int) -> tuple[list[str]
     return ["-f", "lavfi", "-i", lavfi], channels
 
 
-def build_video(variant: dict, defaults: dict, sources_dir: Path, output_path: Path) -> list[str]:
+def _chapter_input(chapters_path: Path | None, args_so_far: list[str]) -> tuple[list[str], list[str]]:
+    """Return (input_args, mapping_args) for a chapter metadata sidecar.
+
+    The sidecar is appended after every media input so that the hardcoded stream
+    maps (`-map 0:v:0`, `-map 1:a:0`, and the computed `idx+1` / `idx+2` offsets)
+    keep referring to the same inputs. Its own index is counted from the args
+    built so far rather than assumed.
+    """
+    if chapters_path is None:
+        return [], []
+    index = sum(1 for a in args_so_far if a == "-i")
+    return (
+        ["-i", str(chapters_path)],
+        ["-map_metadata", str(index), "-map_chapters", str(index)],
+    )
+
+
+def build_video(variant: dict, defaults: dict, sources_dir: Path, output_path: Path,
+                chapters_path: Path | None = None) -> list[str]:
     """Construct ffmpeg args for a standard video+audio variant."""
     width = variant.get("width", defaults["width"])
     height = variant.get("height", defaults["height"])
@@ -174,20 +324,31 @@ def build_video(variant: dict, defaults: dict, sources_dir: Path, output_path: P
     video = variant["video"]
     audio = variant["audio"]
 
-    audio_input_args, _channels = _audio_src_for_channels(sources_dir, audio.get("channels", 2))
+    audio_input_args, _channels = _audio_src_for_channels(sources_dir, audio.get("channels", 2), defaults)
 
     pre_input: list[str] = []
     if video.get("itsoffset") is not None:
         pre_input += ["-itsoffset", str(video["itsoffset"])]
 
-    args: list[str] = [
+    # An offset on the audio input desynchronises A/V on purpose; video.itsoffset
+    # shifts the picture instead.
+    audio_offset = ["-itsoffset", str(audio["itsoffset"])] if audio.get("itsoffset") is not None else []
+    inputs: list[str] = [
         *pre_input,
         "-i", str(sources_dir / defaults["source_video"]),
+        *audio_offset,
         *audio_input_args,
+    ]
+    chapter_input, chapter_maps = _chapter_input(chapters_path, inputs)
+
+    args: list[str] = [
+        *inputs,
+        *chapter_input,
         "-map", "0:v:0",
         "-map", "1:a:0",
-        *_duration_flag(defaults),
-        *_common_video_args(video, defaults, width=width, height=height, framerate=framerate),
+        *chapter_maps,
+        *_duration_flag(defaults, variant),
+        *_common_video_args(video, defaults, width=width, height=height, framerate=framerate, variant=variant),
         *_common_audio_args(audio),
         str(output_path),
     ]
@@ -197,11 +358,11 @@ def build_video(variant: dict, defaults: dict, sources_dir: Path, output_path: P
 def build_audio_only(variant: dict, defaults: dict, sources_dir: Path, output_path: Path) -> list[str]:
     """Construct ffmpeg args for an audio-only variant."""
     audio = variant["audio"]
-    audio_input_args, _ = _audio_src_for_channels(sources_dir, audio.get("channels", 2))
+    audio_input_args, _ = _audio_src_for_channels(sources_dir, audio.get("channels", 2), defaults)
 
     args: list[str] = [
         *audio_input_args,
-        *_duration_flag(defaults),
+        *_duration_flag(defaults, variant),
         "-vn",
         *_common_audio_args(audio),
         str(output_path),
@@ -229,7 +390,7 @@ def build_subtitle_embedded(variant: dict, defaults: dict, sources_dir: Path, ou
     audio = variant["audio"]
     sub_codec = {"srt": "srt", "ass": "ass", "mov_text": "mov_text", "webvtt": "webvtt"}[variant["format"]]
 
-    audio_input_args, _ = _audio_src_for_channels(sources_dir, audio.get("channels", 2))
+    audio_input_args, _ = _audio_src_for_channels(sources_dir, audio.get("channels", 2), defaults)
 
     args: list[str] = [
         "-i", str(sources_dir / defaults["source_video"]),
@@ -238,8 +399,8 @@ def build_subtitle_embedded(variant: dict, defaults: dict, sources_dir: Path, ou
         "-map", "0:v:0",
         "-map", "1:a:0",
         "-map", "2:s:0",
-        *_duration_flag(defaults),
-        *_common_video_args(video, defaults, width=width, height=height),
+        *_duration_flag(defaults, variant),
+        *_common_video_args(video, defaults, width=width, height=height, variant=variant),
         *_common_audio_args(audio),
         "-c:s", sub_codec,
         "-metadata:s:s:0", f"language={variant['language']}",
@@ -258,15 +419,15 @@ def build_stream(variant: dict, defaults: dict, sources_dir: Path, out_dir: Path
     stream_type = variant["type"]
 
     out_dir.mkdir(parents=True, exist_ok=True)
-    audio_input_args, _ = _audio_src_for_channels(sources_dir, audio.get("channels", 2))
+    audio_input_args, _ = _audio_src_for_channels(sources_dir, audio.get("channels", 2), defaults)
 
     common_inputs = [
         "-i", str(sources_dir / defaults["source_video"]),
         *audio_input_args,
         "-map", "0:v:0",
         "-map", "1:a:0",
-        *_duration_flag(defaults),
-        *_common_video_args(video, defaults, width=width, height=height),
+        *_duration_flag(defaults, variant),
+        *_common_video_args(video, defaults, width=width, height=height, variant=variant),
         *_common_audio_args(audio),
     ]
 
@@ -300,7 +461,8 @@ def build_stream(variant: dict, defaults: dict, sources_dir: Path, out_dir: Path
     raise ValueError(f"unknown stream type: {stream_type}")
 
 
-def build_edge(variant: dict, defaults: dict, sources_dir: Path, output_path: Path) -> list[str]:
+def build_edge(variant: dict, defaults: dict, sources_dir: Path, output_path: Path,
+               chapters_path: Path | None = None) -> list[str]:
     """Dispatch edge-case variants to the right construction path."""
     flags = set(variant.get("flags", []))
     name = variant["name"]
@@ -311,19 +473,19 @@ def build_edge(variant: dict, defaults: dict, sources_dir: Path, output_path: Pa
         video = variant["video"]
         return [
             "-i", str(sources_dir / defaults["source_video"]),
-            *_duration_flag(defaults),
+            *_duration_flag(defaults, variant),
             "-map", "0:v:0",
             "-an",
-            *_common_video_args(video, defaults, width=width, height=height),
+            *_common_video_args(video, defaults, width=width, height=height, variant=variant),
             str(output_path),
         ]
 
     if "audio_only" in flags:
         audio = variant["audio"]
-        audio_input_args, _ = _audio_src_for_channels(sources_dir, audio.get("channels", 2))
+        audio_input_args, _ = _audio_src_for_channels(sources_dir, audio.get("channels", 2), defaults)
         return [
             *audio_input_args,
-            *_duration_flag(defaults),
+            *_duration_flag(defaults, variant),
             "-vn",
             *_common_audio_args(audio),
             str(output_path),
@@ -338,10 +500,10 @@ def build_edge(variant: dict, defaults: dict, sources_dir: Path, output_path: Pa
         for t in tracks:
             a_in, _ = _audio_src_for_channels(sources_dir, t.get("channels", 2))
             args += a_in
-        args += [*_duration_flag(defaults), "-map", "0:v:0"]
+        args += [*_duration_flag(defaults, variant), "-map", "0:v:0"]
         for idx, _t in enumerate(tracks):
             args += ["-map", f"{idx + 1}:a:0"]
-        args += _common_video_args(video, defaults, width=width, height=height)
+        args += _common_video_args(video, defaults, width=width, height=height, variant=variant)
         for idx, t in enumerate(tracks):
             args += [f"-c:a:{idx}", t["codec"]]
             if t.get("bitrate"):
@@ -365,18 +527,18 @@ def build_edge(variant: dict, defaults: dict, sources_dir: Path, output_path: Pa
         args = [
             "-i", str(sources_dir / defaults["source_video"]),
         ]
-        a_in, _ = _audio_src_for_channels(sources_dir, audio.get("channels", 2))
+        a_in, _ = _audio_src_for_channels(sources_dir, audio.get("channels", 2), defaults)
         args += a_in
         for _t in tracks:
             args += ["-i", str(sources_dir / defaults["source_subtitle"])]
         args += [
-            *_duration_flag(defaults),
+            *_duration_flag(defaults, variant),
             "-map", "0:v:0",
             "-map", "1:a:0",
         ]
         for idx, _t in enumerate(tracks):
             args += ["-map", f"{idx + 2}:s:0"]
-        args += _common_video_args(video, defaults, width=width, height=height)
+        args += _common_video_args(video, defaults, width=width, height=height, variant=variant)
         args += _common_audio_args(audio)
         for idx, t in enumerate(tracks):
             codec = {"srt": "srt", "ass": "ass", "webvtt": "webvtt", "mov_text": "mov_text"}[t["format"]]
@@ -397,17 +559,24 @@ def build_edge(variant: dict, defaults: dict, sources_dir: Path, output_path: Pa
     if "variable_fps" in flags:
         video = variant["video"]
         audio = variant["audio"]
-        audio_input_args, _ = _audio_src_for_channels(sources_dir, audio.get("channels", 2))
-        vf = (
-            f"{_scale_filter(width, height)},"
-            "setpts='if(lt(N,72),PTS,if(lt(N,144),PTS*1.5,PTS*2))'"
+        audio_input_args, _ = _audio_src_for_channels(sources_dir, audio.get("channels", 2), defaults)
+        # Overlay is drawn before setpts so the burned timestamp is the true
+        # pre-remap source time, which is what makes the remapping visible on screen.
+        overlay_filters = _variant_overlay(
+            variant, defaults, width=width, height=height,
+            framerate=variant.get("framerate", defaults["framerate"]),
         )
+        vf = ",".join([
+            _scale_filter(width, height),
+            *overlay_filters,
+            "setpts='if(lt(N,72),PTS,if(lt(N,144),PTS*1.5,PTS*2))'",
+        ])
         args = [
             "-i", str(sources_dir / defaults["source_video"]),
             *audio_input_args,
             "-map", "0:v:0",
             "-map", "1:a:0",
-            *_duration_flag(defaults),
+            *_duration_flag(defaults, variant),
             "-c:v", video["codec"],
             "-pix_fmt", video["pix_fmt"],
             "-profile:v", video["profile"],
@@ -424,17 +593,23 @@ def build_edge(variant: dict, defaults: dict, sources_dir: Path, output_path: Pa
     if "broken_timestamps" in flags:
         video = variant["video"]
         audio = variant["audio"]
-        audio_input_args, _ = _audio_src_for_channels(sources_dir, audio.get("channels", 2))
-        vf = (
-            f"{_scale_filter(width, height)},"
-            "setpts='PTS+if(gt(N,120),5/TB,0)'"
+        audio_input_args, _ = _audio_src_for_channels(sources_dir, audio.get("channels", 2), defaults)
+        # Same ordering rule as variable_fps: burn the pre-remap timestamp.
+        overlay_filters = _variant_overlay(
+            variant, defaults, width=width, height=height,
+            framerate=variant.get("framerate", defaults["framerate"]),
         )
+        vf = ",".join([
+            _scale_filter(width, height),
+            *overlay_filters,
+            "setpts='PTS+if(gt(N,120),5/TB,0)'",
+        ])
         args = [
             "-i", str(sources_dir / defaults["source_video"]),
             *audio_input_args,
             "-map", "0:v:0",
             "-map", "1:a:0",
-            *_duration_flag(defaults),
+            *_duration_flag(defaults, variant),
             "-c:v", video["codec"],
             "-pix_fmt", video["pix_fmt"],
             "-profile:v", video["profile"],
@@ -452,14 +627,14 @@ def build_edge(variant: dict, defaults: dict, sources_dir: Path, output_path: Pa
     if "annexb" in flags:
         video = variant["video"]
         audio = variant["audio"]
-        audio_input_args, _ = _audio_src_for_channels(sources_dir, audio.get("channels", 2))
+        audio_input_args, _ = _audio_src_for_channels(sources_dir, audio.get("channels", 2), defaults)
         args = [
             "-i", str(sources_dir / defaults["source_video"]),
             *audio_input_args,
             "-map", "0:v:0",
             "-map", "1:a:0",
-            *_duration_flag(defaults),
-            *_common_video_args(video, defaults, width=width, height=height),
+            *_duration_flag(defaults, variant),
+            *_common_video_args(video, defaults, width=width, height=height, variant=variant),
             "-bsf:v", "h264_mp4toannexb",
             *_common_audio_args(audio),
             str(output_path),
@@ -469,14 +644,14 @@ def build_edge(variant: dict, defaults: dict, sources_dir: Path, output_path: Pa
     if "fragmented_mp4" in flags:
         video = variant["video"]
         audio = variant["audio"]
-        audio_input_args, _ = _audio_src_for_channels(sources_dir, audio.get("channels", 2))
+        audio_input_args, _ = _audio_src_for_channels(sources_dir, audio.get("channels", 2), defaults)
         args = [
             "-i", str(sources_dir / defaults["source_video"]),
             *audio_input_args,
             "-map", "0:v:0",
             "-map", "1:a:0",
-            *_duration_flag(defaults),
-            *_common_video_args(video, defaults, width=width, height=height),
+            *_duration_flag(defaults, variant),
+            *_common_video_args(video, defaults, width=width, height=height, variant=variant),
             *_common_audio_args(audio),
             "-movflags", "+frag_keyframe+empty_moov+default_base_moof",
             str(output_path),
@@ -486,14 +661,22 @@ def build_edge(variant: dict, defaults: dict, sources_dir: Path, output_path: Pa
     if "missing_metadata" in flags:
         video = variant["video"]
         audio = variant["audio"]
-        audio_input_args, _ = _audio_src_for_channels(sources_dir, audio.get("channels", 2))
-        args = [
+        audio_input_args, _ = _audio_src_for_channels(sources_dir, audio.get("channels", 2), defaults)
+        inputs = [
             "-i", str(sources_dir / defaults["source_video"]),
             *audio_input_args,
+        ]
+        # Attach the chapter sidecar as an input but never map it: the -map_chapters -1
+        # below then genuinely strips chapters that were present, rather than the file
+        # simply never having had any.
+        chapter_input, _unused_maps = _chapter_input(chapters_path, inputs)
+        args = [
+            *inputs,
+            *chapter_input,
             "-map", "0:v:0",
             "-map", "1:a:0",
-            *_duration_flag(defaults),
-            *_common_video_args(video, defaults, width=width, height=height),
+            *_duration_flag(defaults, variant),
+            *_common_video_args(video, defaults, width=width, height=height, variant=variant),
             *_common_audio_args(audio),
             "-map_metadata", "-1",
             "-map_chapters", "-1",
@@ -504,12 +687,22 @@ def build_edge(variant: dict, defaults: dict, sources_dir: Path, output_path: Pa
         ]
         return args
 
-    if "low_bitrate" in flags or "high_bitrate" in flags or "avcc" in flags or "edit_list" in flags:
-        return build_video(variant, defaults, sources_dir, output_path)
+    # These differ from a standard build only in metadata or a post-encode step, so the
+    # encode itself is build_video. rotation is stamped afterwards by generate.py.
+    plain = {"low_bitrate", "high_bitrate", "avcc", "edit_list",
+             "rotation", "aspect_conflict", "av_desync"}
+    if flags & plain:
+        return build_video(variant, defaults, sources_dir, output_path, chapters_path)
 
     if "truncated" in flags:
-        args = build_video(variant, defaults, sources_dir, output_path)
+        args = build_video(variant, defaults, sources_dir, output_path, chapters_path)
         # faststart puts moov at the front so the header survives the later truncation
         return args[:-1] + ["-movflags", "+faststart"] + args[-1:]
+
+    if "chapters" in flags:
+        # Malformed-chapter cases differ only in their metadata sidecar, so the encode
+        # itself is a standard build. Placed last so a variant that also carries
+        # missing_metadata is handled by the strip branch above instead.
+        return build_video(variant, defaults, sources_dir, output_path, chapters_path)
 
     raise ValueError(f"no edge handler matched variant {name} with flags {flags}")

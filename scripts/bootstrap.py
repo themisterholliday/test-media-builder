@@ -10,17 +10,24 @@ never overwritten, only warned about if duration mismatches.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
 
 from .ffutil import FFExecError, ffprobe, run_ffmpeg
+from .overlay import is_enabled as overlay_enabled, source_overlay_filters
 
 log = logging.getLogger("bootstrap")
 
 DURATION_TOLERANCE_SECONDS = 0.5
 SENTINEL_NAME = ".synthetic_sources.json"
+
+IMAGE_DIR_NAME = "images"
+IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff")
+DEFAULT_IMAGE_HOLD_SECONDS = 5
+SLIDESHOW_CYCLE_NAME = ".slideshow_cycle.mov"
 
 SUB_ASS_HEADER = """[Script Info]
 ScriptType: v4.00+
@@ -114,11 +121,12 @@ def _read_sentinel(sources_dir: Path) -> dict:
         return {}
 
 
-def _write_sentinel_entry(sources_dir: Path, name: str, duration: int) -> None:
+def _write_sentinel_entry(sources_dir: Path, name: str, duration: int, signature: str = "") -> None:
     data = _read_sentinel(sources_dir)
     data[name] = {
         "synthetic": True,
         "duration_seconds": duration,
+        "signature": signature,
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }
     (sources_dir / SENTINEL_NAME).write_text(json.dumps(data, indent=2), encoding="utf-8")
@@ -130,22 +138,130 @@ def _is_synthetic(sources_dir: Path, name: str) -> bool:
     return bool(entry and entry.get("synthetic"))
 
 
+def _signature_matches(sources_dir: Path, name: str, signature: str) -> bool:
+    """True if the recorded build signature for a synthetic source is still current.
+
+    Duration alone cannot detect a changed overlay or a changed image set — both
+    produce a file of identical length that looks different.
+    """
+    entry = _read_sentinel(sources_dir).get(name) or {}
+    return entry.get("signature", "") == signature
+
+
+def list_source_images(sources_dir: Path) -> list[Path]:
+    """Return user-supplied still images, name-sorted so slideshow order is deterministic."""
+    image_dir = sources_dir / IMAGE_DIR_NAME
+    if not image_dir.is_dir():
+        return []
+    return sorted(
+        p for p in image_dir.iterdir()
+        if p.is_file() and p.suffix.lower() in IMAGE_EXTENSIONS
+    )
+
+
+def image_set_fingerprint(images: list[Path]) -> str:
+    """Fingerprint the image set by name and size, so swapping an image is detected."""
+    if not images:
+        return ""
+    parts = []
+    for p in images:
+        try:
+            parts.append(f"{p.name}:{p.stat().st_size}")
+        except OSError:
+            parts.append(f"{p.name}:?")
+    return hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()[:16]
+
+
+def master_signature(overlay: dict | None, images: list[Path] | None = None,
+                     image_hold_seconds: int = DEFAULT_IMAGE_HOLD_SECONDS) -> str:
+    """Return a stable fingerprint of every input that changes the master's picture.
+
+    Duration is tracked separately. This covers the overlay settings and the image
+    set, neither of which changes the file's length.
+    """
+    payload = {
+        "overlay": overlay or {"enabled": False},
+        "images": image_set_fingerprint(images or []),
+        "image_hold_seconds": image_hold_seconds if images else 0,
+    }
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
+
+
+def _build_slideshow_cycle(
+    cycle_path: Path,
+    images: list[Path],
+    *,
+    width: int,
+    height: int,
+    framerate: int,
+    hold: float,
+) -> None:
+    """Render one pass through the image set to a normalized intermediate clip.
+
+    Each still is opened as its own input and scaled/padded independently, then the
+    results are joined with the concat *filter*. The concat demuxer cannot be used
+    here: it requires every input to share a resolution and pixel format, so a set of
+    mixed-size images silently truncates to the first one.
+    """
+    if not images:
+        raise ValueError("cannot build a slideshow with no images")
+
+    args: list[str] = []
+    for image in images:
+        args += ["-loop", "1", "-framerate", str(framerate), "-t", str(hold), "-i", str(image)]
+
+    chains = [
+        f"[{i}:v]scale={width}:{height}:force_original_aspect_ratio=decrease:flags=lanczos,"
+        f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,fps={framerate}[v{i}]"
+        for i in range(len(images))
+    ]
+    labels = "".join(f"[v{i}]" for i in range(len(images)))
+    chains.append(f"{labels}concat=n={len(images)}:v=1:a=0[out]")
+
+    args += [
+        "-filter_complex", ";".join(chains),
+        "-map", "[out]",
+        "-c:v", "prores_ks",
+        "-profile:v", "3",
+        "-pix_fmt", "yuv422p10le",
+        str(cycle_path),
+    ]
+    run_ffmpeg(args, timeout=max(300, int(hold * len(images)) * 20))
+
+
 def ensure_sources(
     sources_dir: Path,
     duration: int = 300,
     width: int = 1920,
     height: int = 1080,
     framerate: int = 24,
+    overlay: dict | None = None,
+    image_mode: str = "auto",
+    image_hold_seconds: int = DEFAULT_IMAGE_HOLD_SECONDS,
+    source_audio: str = "source_audio.wav",
 ) -> None:
     """Create or refresh synthetic source assets so they match `duration` seconds.
 
-    Regenerates any source whose actual duration differs from the target.
+    Regenerates any source whose actual duration differs from the target, or whose
+    recorded build signature no longer matches the requested overlay and image set.
     Subtitles are regenerated whenever the cue count does not match the target
     duration (one cue per second).
+
+    `image_mode` selects the master's picture content:
+      "auto"      use images from sources/images/ when present, else the test pattern
+      "slideshow" require images, warning and falling back if the directory is empty
+      "none"      always use the synthetic test pattern
     """
     sources_dir.mkdir(parents=True, exist_ok=True)
 
     master = sources_dir / "source_master.mov"
+    images = list_source_images(sources_dir) if image_mode != "none" else []
+    if image_mode == "slideshow" and not images:
+        log.warning("image_mode is 'slideshow' but no images found under %s/%s — "
+                    "falling back to the synthetic test pattern",
+                    sources_dir, IMAGE_DIR_NAME)
+    signature = master_signature(overlay, images, image_hold_seconds)
     if master.exists() and not _is_synthetic(sources_dir, master.name):
         if not _duration_matches(master, duration):
             actual = _probe_duration(master)
@@ -154,23 +270,48 @@ def ensure_sources(
                         master.name, actual or 0, duration, int(actual or duration))
         else:
             log.info("user-supplied %s matches target %ds, using as-is", master.name, duration)
-    elif _duration_matches(master, duration):
+    elif _duration_matches(master, duration) and _signature_matches(sources_dir, master.name, signature):
         log.info("synthetic %s matches target %ds, skipping", master.name, duration)
     else:
         action = "regenerating" if master.exists() else "generating"
-        log.info("%s synthetic master video (%ds @ %dx%d %dfps): %s",
-                 action, duration, width, height, framerate, master)
-        run_ffmpeg([
-            "-f", "lavfi",
-            "-i", f"testsrc2=size={width}x{height}:rate={framerate}:duration={duration}",
+        source_label = f"{len(images)} image(s)" if images else "testsrc2 pattern"
+        log.info("%s synthetic master video (%ds @ %dx%d %dfps, source=%s, overlay=%s): %s",
+                 action, duration, width, height, framerate, source_label,
+                 "on" if overlay_enabled(overlay) else "off", master)
+
+        cycle_path = sources_dir / SLIDESHOW_CYCLE_NAME
+        if images:
+            # Two passes: normalize one cycle, then loop it to fill the duration. The
+            # cycle is already uniform, so looping it is safe where concat was not.
+            _build_slideshow_cycle(
+                cycle_path, images,
+                width=width, height=height, framerate=framerate, hold=image_hold_seconds,
+            )
+            args = ["-stream_loop", "-1", "-i", str(cycle_path)]
+        else:
+            args = [
+                "-f", "lavfi",
+                "-i", f"testsrc2=size={width}x{height}:rate={framerate}:duration={duration}",
+            ]
+
+        # Overlay is drawn last so the text is never scaled or padded with the picture.
+        filters = source_overlay_filters(overlay or {}, height)
+        if filters:
+            args += ["-vf", ",".join(filters)]
+        args += [
+            "-t", str(duration),
             "-c:v", "prores_ks",
             "-profile:v", "3",
             "-pix_fmt", "yuv422p10le",
             str(master),
-        ], timeout=max(600, duration * 10))
-        _write_sentinel_entry(sources_dir, master.name, duration)
+        ]
+        try:
+            run_ffmpeg(args, timeout=max(600, duration * 10))
+        finally:
+            cycle_path.unlink(missing_ok=True)
+        _write_sentinel_entry(sources_dir, master.name, duration, signature)
 
-    audio = sources_dir / "source_audio.wav"
+    audio = sources_dir / source_audio
     if audio.exists() and not _is_synthetic(sources_dir, audio.name):
         if not _duration_matches(audio, duration):
             actual = _probe_duration(audio)

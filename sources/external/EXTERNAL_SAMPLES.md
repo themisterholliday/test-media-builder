@@ -46,3 +46,22 @@ Run `make check` to see which external slots are currently missing.
 ## License and redistribution
 
 This directory is `.gitignore`d. Samples here are presumed to carry licensing or redistribution constraints — do not commit them to a public repository. Use a separate private store or artifact registry for shared access.
+
+## Image-based subtitles
+
+ffmpeg cannot author bitmap subtitle tracks. It refuses text-to-bitmap conversion outright:
+
+```
+Subtitle encoding currently only possible from text to text or bitmap to bitmap
+```
+
+So PGS and VobSub join Dolby Vision and Atmos as slots that need a real sample.
+
+| Slot | Expected path | Notes |
+| --- | --- | --- |
+| `external_pgs_subtitle` | `sources/external/pgs_subtitle.mkv` | Blu-ray PGS track. ffmpeg has no PGS encoder at all. |
+| `external_vobsub` | `sources/external/vobsub.mkv` | DVD VobSub (`.idx`/`.sub`) muxed into Matroska. |
+
+Note that **core DTS and core TrueHD are now synthesized** (`audio_dts_51`, `audio_truehd_51`).
+The remaining external audio slots are scoped to what genuinely cannot be produced: the lossless
+DTS-HD MA extension and Atmos object metadata.

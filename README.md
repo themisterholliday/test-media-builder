@@ -77,6 +77,7 @@ All commands support `--only SECTION[,SECTION…]` and `--variant NAME[,NAME…]
 | `python -m scripts.generate --refresh-nfo`        | Rewrite NFOs from existing outputs without re-encoding. For metadata-only fixes.                                                          |
 | `python -m scripts.library`                       | Build the faceted show tree under `library/`. Run after every generate.                                                                   |
 | `python -m scripts.servercheck`                   | Diff what Plex and Jellyfin scanned against the manifest. Needs `make servers` first.                                                     |
+| `python -m scripts.plexsetup --claim TOKEN`       | Create the three Plex libraries and claim the server so Plex apps can find it.                                                            |
 | `python -m scripts.verify`                        | Post-creation validation — decode smoke test, contract re-check, NFO parse, bitstream assertions. Writes `generated/verify_report.json`. |
 | `python -m scripts.verify --no-decode`            | Skip the decode-only pass (fastest path if you just want structural checks).                                                             |
 | `python -m scripts.manifest`                      | Emit `generated/manifest.json` — flat machine-readable index.                                                                            |
@@ -323,6 +324,53 @@ Three things worth knowing, all confirmed against the running servers:
 - **Plex will not ingest DNxHD in MXF; Jellyfin will.** A real capability difference between the two.
 - **Plex's `aspectRatio` is a coarse bucket.** Across the entire 109-variant library it emits only four values: `1.33`, `1.78`, `1.85`, `2.35`. A 1:1 square file reports `1.33` and a 9:16 vertical file also reports `1.33`. Its `width`/`height` are exact, so those are what the check compares.
 - **Both servers read chapters correctly**, including the malformed cases — Plex agrees that the out-of-order file has one chapter and the stripped file has none. Plex omits chapters unless the request asks for them with `?includeChapters=1`.
+
+## Using the library from Plex apps
+
+The validation harness above runs headless. To actually *play* the test files from a phone, TV or browser, the library needs a different shape — one TV library cannot reach all of it — and the server needs to belong to your account so apps can find it.
+
+Everything is local and self-contained: each person runs their own server against their own build. Nothing is hosted, shared, or coupled to anyone else's account.
+
+```bash
+make generate && make library      # build the media and the library tree
+make servers                       # start Plex (and Jellyfin) in docker
+make plex-setup CLAIM=<token>      # create the libraries and claim the server
+```
+
+Get the claim token from [plex.tv/claim](https://plex.tv/claim) — it expires after about four minutes. Omit `CLAIM=` and the server still works over the local API, but Plex apps will not discover it.
+
+`library/` is built as three roots, because Plex needs three library types to reach everything:
+
+| Root | Plex library | Purpose |
+| --- | --- | --- |
+| `library/flat` | Other Videos | **One item per variant, named exactly.** The reliable way to play a specific test file. |
+| `library/shows` | TV Shows | Faceted browsing — pick a capability, see everything that has it. |
+| `library/audio` | Music | Audio-only variants as Artist/Album/Track. |
+
+All three are hardlinks into `generated/`, so the extra trees cost no disk.
+
+**Why a flat library exists.** Plex's TV scanner rewrites show names that look like they contain technical tokens, so `Widescreen 16x9` is filed as `Widescreen` and unrelated shows merge into it. A first attempt produced 4 shows out of 52 directories. Other Videos applies no such naming rules, so every variant appears exactly once under the name the matrix gave it. Use the faceted library to browse and the flat library to test.
+
+### Reach
+
+**92 of 97 built variants are playable from Plex apps.** The five that are not:
+
+| Variant | Why |
+| --- | --- |
+| `sub_external_srt_eng`, `_webvtt_eng`, `_ass_eng` | Subtitle sidecars are not playable media in any server. They belong beside a video, not as items. |
+| `dnxhd_mxf_pcm` | Plex will not ingest DNxHD in MXF. Jellyfin will — see the validation section. |
+| `audio_eac3_51` | A raw E-AC-3 elementary stream is indexed by neither the Music nor the Video Files scanner. |
+
+Two behaviours worth knowing when scripting against this, both learned the hard way:
+
+- **Agent and scanner generations must match**, or the API answers `400 new scanner needs to be paired with new agent`. Confusingly, the modern `tv.plex.agents.none` pairs with the plainly-named scanners — `Plex Video Files`, not `Plex Video Files Scanner`.
+- **A refresh issued immediately after creating a section is silently dropped.** The section reports `scannedAt` unset and stays empty forever. `plexsetup` waits, then refreshes, then polls until every section is idle.
+
+### Claiming, and how to avoid claiming by accident
+
+`ALLOWED_NETWORKS` grants unauthenticated access to the whole API — including `/myplex/claim`. An unclaimed server is therefore not a stable state if anything on the host can reach it: opening the web UI while signed in to Plex is enough to attach it to your account. That is fine when it is what you want, and `make plex-setup CLAIM=` makes it deliberate. If you would rather it stayed unclaimed, narrow `ALLOWED_NETWORKS` to the container subnet and avoid the web UI.
+
+Server config persists under `docker/config/` (gitignored), so a claimed server keeps its libraries and settings across restarts. `make servers-down` stops the containers; `make servers-reset` wipes them back to nothing.
 
 ## Sources
 

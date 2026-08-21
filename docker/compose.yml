@@ -4,8 +4,10 @@
 # into the generated tree, and coping with a read-only source is itself part of
 # what is being tested.
 #
-# Config lives in named volumes so a run starts from a known state --
-# `docker compose down -v` resets both servers completely.
+# Config lives in bind-mounted directories under docker/config/, so a claimed server,
+# its libraries and its settings survive `docker compose down`. Use `make servers-reset`
+# to wipe them and start clean; the validation harness wants that, an app-facing server
+# does not.
 
 name: testlib
 
@@ -25,7 +27,7 @@ services:
       # host, and this stack must never interfere with a real library.
       - "${PLEX_PORT:-32401}:32400"
     volumes:
-      - plex-config:/config
+      - ./config/plex:/config
       - plex-transcode:/transcode
       - ../library:/media:ro
     healthcheck:
@@ -43,7 +45,7 @@ services:
     ports:
       - "${JELLYFIN_PORT:-8096}:8096"
     volumes:
-      - jellyfin-config:/config
+      - ./config/jellyfin:/config
       - jellyfin-cache:/cache
       - ../library:/media:ro
     healthcheck:
@@ -54,7 +56,5 @@ services:
       start_period: 20s
 
 volumes:
-  plex-config:
   plex-transcode:
-  jellyfin-config:
   jellyfin-cache:

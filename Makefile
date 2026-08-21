@@ -2,7 +2,7 @@ PY ?= python3
 ROOT := $(shell pwd)
 JOBS ?= 1
 
-.PHONY: help bootstrap generate check clean clean-generated dry-run force rebuild verify manifest thumbs library servers servers-down servercheck all
+.PHONY: help bootstrap generate check clean clean-generated dry-run force rebuild verify manifest thumbs library servers servers-down servers-reset plex-setup servercheck all
 
 help:
 	@echo "Targets:"
@@ -18,7 +18,9 @@ help:
 	@echo "  library         build the faceted show tree under library/ (run after generate)"
 	@echo "  servers         start Plex + Jellyfin in docker against library/ (read-only)"
 	@echo "  servercheck     diff what each server scanned against generated/manifest.json"
-	@echo "  servers-down    stop the servers and delete their config volumes"
+	@echo "  plex-setup      create the three Plex libraries (CLAIM=<token> to use Plex apps)"
+	@echo "  servers-down    stop the servers, keeping their config"
+	@echo "  servers-reset   stop and wipe all server config"
 	@echo "  all             generate + verify + manifest + thumbs + library"
 	@echo "  clean-generated remove everything under generated/"
 	@echo "  clean           remove generated/ and synthesized sources"
@@ -64,7 +66,14 @@ servers:
 	@echo "run 'make servercheck' once both have finished scanning"
 
 servers-down:
+	$(COMPOSE) down
+
+servers-reset:
 	$(COMPOSE) down -v
+	rm -rf docker/config/plex docker/config/jellyfin
+
+plex-setup:
+	$(PY) -m scripts.plexsetup $(if $(CLAIM),--claim $(CLAIM))
 
 servercheck:
 	$(PY) -m scripts.servercheck

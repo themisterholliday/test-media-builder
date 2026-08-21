@@ -38,6 +38,10 @@ LIBRARY_DIR = ROOT / "library"
 STATE_NAME = ".library_state.json"
 EPISODE_MAP_NAME = ".episode_map.json"
 SEASON_DIR = "Season 01"
+SHOWS_ROOT = "shows"   # faceted TV-show tree, for a Plex "TV Shows" library
+FLAT_ROOT = "flat"     # one file per video variant, for a Plex "Other Videos" library
+AUDIO_ROOT = "audio"   # audio-only variants, for a Plex "Music" library
+ALBUM_NAME = "Test Library"
 LINK_MODES = ("hardlink", "symlink", "copy")
 
 # Facet definitions. Each yields (show_id, show_title) pairs for one manifest entry.
@@ -326,6 +330,8 @@ def build_library(
 ) -> dict:
     """Project the manifest into the faceted show tree. Returns a summary dict."""
     entries = manifest.get("entries", [])
+    entries_by_name = {e["name"]: e for e in entries
+                       if e.get("status") == "built" and e.get("section") != "streams"}
     shows = collect_shows(entries, facets)
     shows = {k: v for k, v in shows.items() if len(v["entries"]) >= min_episodes}
 
@@ -338,7 +344,7 @@ def build_library(
     counts = {"linked": 0, "relinked": 0, "current": 0}
 
     for show_id, show in sorted(shows.items()):
-        show_dir = library_dir / _safe_name(show["title"])
+        show_dir = library_dir / SHOWS_ROOT / _safe_name(show["title"])
         season_dir = show_dir / SEASON_DIR
         season_dir.mkdir(parents=True, exist_ok=True)
 
@@ -401,6 +407,9 @@ def build_library(
             except FFExecError as e:
                 log.warning("poster failed for %s: %s", show["title"], e)
 
+    build_flat_tree(entries_by_name, library_dir, link_mode, created, counts)
+    build_audio_tree(entries_by_name, library_dir, link_mode, created, counts)
+
     removed = _prune(library_dir, previous - created)
     state_path.parent.mkdir(parents=True, exist_ok=True)
     state_path.write_text(json.dumps({"paths": sorted(created)}, indent=2), encoding="utf-8")
@@ -412,6 +421,62 @@ def build_library(
         **counts,
         "removed": removed,
     }
+
+
+def build_flat_tree(entries: dict, library_dir: Path, link_mode: str,
+                    created: set[str], counts: dict) -> None:
+    """Link every video variant once, under its own name, in a flat directory.
+
+    The faceted tree is good for browsing but Plex's TV scanner rewrites show names
+    it believes contain technical tokens, so "Widescreen 16x9" collapses into
+    "Widescreen". A flat Other Videos library sidesteps the scanner's naming rules and
+    gives exactly one item per variant, named as the matrix names it.
+    """
+    flat_dir = library_dir / FLAT_ROOT
+    flat_dir.mkdir(parents=True, exist_ok=True)
+    for name, entry in sorted(entries.items()):
+        src = ROOT / entry["path"]
+        if not src.exists():
+            continue
+        # Audio-only variants are included too: Plex Music refuses tracks in MKV or raw
+        # EAC3, so a video-files library is the only route to the surround formats.
+        dst = flat_dir / f"{_safe_name(name)}{src.suffix}"
+        counts[_link_file(src, dst, link_mode)] += 1
+        created.add(str(dst.relative_to(library_dir)))
+        _link_thumb(name, dst.with_suffix(""), library_dir, link_mode, created)
+
+
+def build_audio_tree(entries: dict, library_dir: Path, link_mode: str,
+                     created: set[str], counts: dict) -> None:
+    """Link audio-only variants as Artist/Album/Track for a Plex Music library.
+
+    A TV library does not index files without a video stream, so roughly twenty
+    variants -- DTS, TrueHD, ALAC, FLAC, PCM and friends -- are unreachable from apps
+    unless they are presented as music.
+    """
+    for name, entry in sorted(entries.items()):
+        if entry.get("video"):
+            continue
+        src = ROOT / entry["path"]
+        if not src.exists():
+            continue
+        codec = ((entry.get("audio_tracks") or [{}])[0].get("codec") or "unknown").upper()
+        album_dir = library_dir / AUDIO_ROOT / _safe_name(f"{codec} Audio") / _safe_name(ALBUM_NAME)
+        album_dir.mkdir(parents=True, exist_ok=True)
+        dst = album_dir / f"{_safe_name(name)}{src.suffix}"
+        counts[_link_file(src, dst, link_mode)] += 1
+        created.add(str(dst.relative_to(library_dir)))
+
+
+def _link_thumb(variant: str, base: Path, library_dir: Path, link_mode: str,
+                created: set[str]) -> None:
+    """Link a variant's thumbnail beside a media file, if one was generated."""
+    thumb = GENERATED_DIR / "_thumbs" / f"{variant}.jpg"
+    if not thumb.exists():
+        return
+    dst = base.with_name(f"{base.name}-thumb.jpg")
+    _link_file(thumb, dst, link_mode)
+    created.add(str(dst.relative_to(library_dir)))
 
 
 def _prune(library_dir: Path, stale: set[str]) -> int:

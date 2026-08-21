@@ -20,6 +20,7 @@ import argparse
 import json
 import logging
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -138,6 +139,67 @@ def _plex_item(node: ET.Element) -> ServerItem | None:
 
 
 # ----------------------------------------------------------------------- Jellyfin
+
+def _post_json(url: str, payload: dict | None = None, headers: dict | None = None) -> None:
+    """POST JSON and ignore the (empty) body. Raises on failure."""
+    data = json.dumps(payload or {}).encode()
+    request = urllib.request.Request(
+        url, data=data, method="POST",
+        headers={"Content-Type": "application/json", **(headers or {})})
+    with urllib.request.urlopen(request, timeout=60):
+        return
+
+
+def jellyfin_needs_setup(base: str) -> bool:
+    """True when the startup wizard has not been completed."""
+    info = json.loads(_get(f"{base}/System/Info/Public"))
+    return not info.get("StartupWizardCompleted", False)
+
+
+def jellyfin_bootstrap(base: str, user: str, password: str) -> None:
+    """Complete the startup wizard and create the library over the API.
+
+    Without this the check is only usable on a server someone already configured by
+    hand, and a `make servers-reset` would silently break it.
+
+    Trickplay and chapter-image extraction are switched off at creation: left on,
+    Jellyfin generates sprite sheets for every file, including the 100-chapter one.
+    """
+    log.info("jellyfin: running first-time setup")
+    _post_json(f"{base}/Startup/Configuration",
+               {"UICulture": "en-US", "MetadataCountryCode": "US",
+                "PreferredMetadataLanguage": "en"})
+    _get(f"{base}/Startup/User")
+    _post_json(f"{base}/Startup/User", {"Name": user, "Password": password})
+    _post_json(f"{base}/Startup/RemoteAccess",
+               {"EnableRemoteAccess": True, "EnableAutomaticPortMapping": False})
+    _post_json(f"{base}/Startup/Complete")
+
+    token = jellyfin_token(base, user, password)
+    headers = {"Authorization": f'MediaBrowser Token="{token}"'}
+    for name, collection, path in (("Testlib Shows", "tvshows", "/media/shows"),
+                                   ("Testlib Audio", "music", "/media/audio")):
+        query = urllib.parse.urlencode(
+            {"name": name, "collectionType": collection, "refreshLibrary": "false"})
+        _post_json(
+            f"{base}/Library/VirtualFolders?{query}",
+            {"LibraryOptions": {
+                "PathInfos": [{"Path": path}],
+                "EnableTrickplayImageExtraction": False,
+                "ExtractTrickplayImagesDuringLibraryScan": False,
+                "EnableChapterImageExtraction": False,
+                "ExtractChapterImagesDuringLibraryScan": False,
+                "EnableInternetProviders": False,
+                "SaveLocalMetadata": False,
+                "EnableRealtimeMonitor": False,
+                "MetadataSavers": [],
+                "LocalMetadataReaderOrder": ["Nfo"],
+            }},
+            headers)
+        log.info("jellyfin: created %s -> %s", name, path)
+    _post_json(f"{base}/Library/Refresh", None, headers)
+    log.info("jellyfin: scanning")
+
 
 def jellyfin_token(base: str, user: str, password: str) -> str:
     """Authenticate and return an access token."""
@@ -375,6 +437,10 @@ def main(argv: list[str] | None = None) -> int:
             log.error("plex unreachable: %s", e)
     if ns.jellyfin:
         try:
+            if jellyfin_needs_setup(ns.jellyfin):
+                jellyfin_bootstrap(ns.jellyfin, ns.jellyfin_user, ns.jellyfin_password)
+                log.info("jellyfin: waiting for the first scan")
+                time.sleep(90)
             token = jellyfin_token(ns.jellyfin, ns.jellyfin_user, ns.jellyfin_password)
             inventories["jellyfin"] = jellyfin_inventory(ns.jellyfin, token)
             log.info("jellyfin: %d items", len(inventories["jellyfin"]))

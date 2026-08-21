@@ -2,7 +2,7 @@ PY ?= python3
 ROOT := $(shell pwd)
 JOBS ?= 1
 
-.PHONY: help bootstrap generate check clean clean-generated dry-run force rebuild verify manifest thumbs library all
+.PHONY: help bootstrap generate check clean clean-generated dry-run force rebuild verify manifest thumbs library servers servers-down servercheck all
 
 help:
 	@echo "Targets:"
@@ -16,6 +16,9 @@ help:
 	@echo "  manifest        write generated/manifest.json index"
 	@echo "  thumbs          extract per-variant thumbnails + contact sheet"
 	@echo "  library         build the faceted show tree under library/ (run after generate)"
+	@echo "  servers         start Plex + Jellyfin in docker against library/ (read-only)"
+	@echo "  servercheck     diff what each server scanned against generated/manifest.json"
+	@echo "  servers-down    stop the servers and delete their config volumes"
 	@echo "  all             generate + verify + manifest + thumbs + library"
 	@echo "  clean-generated remove everything under generated/"
 	@echo "  clean           remove generated/ and synthesized sources"
@@ -49,6 +52,22 @@ thumbs:
 
 library:
 	$(PY) -m scripts.library $(if $(LINK_MODE),--link-mode $(LINK_MODE)) $(if $(FACETS),--facets $(FACETS))
+
+# DOCKER is overridable: Docker Desktop does not always symlink its CLI onto PATH.
+DOCKER ?= $(shell command -v docker 2>/dev/null || echo /Applications/Docker.app/Contents/Resources/bin/docker)
+COMPOSE := $(DOCKER) compose -f docker/compose.yml
+
+servers:
+	$(COMPOSE) up -d
+	@echo "plex:     http://localhost:$${PLEX_PORT:-32401}"
+	@echo "jellyfin: http://localhost:$${JELLYFIN_PORT:-8096}"
+	@echo "run 'make servercheck' once both have finished scanning"
+
+servers-down:
+	$(COMPOSE) down -v
+
+servercheck:
+	$(PY) -m scripts.servercheck
 
 all: generate verify manifest thumbs library
 

@@ -1,0 +1,60 @@
+# Two media servers pointed at the faceted library, for scan validation.
+#
+# Both mount library/ read-only: neither server may write NFOs or artwork back
+# into the generated tree, and coping with a read-only source is itself part of
+# what is being tested.
+#
+# Config lives in named volumes so a run starts from a known state --
+# `docker compose down -v` resets both servers completely.
+
+name: testlib
+
+services:
+  plex:
+    image: plexinc/pms-docker:latest
+    container_name: testlib-plex
+    environment:
+      TZ: ${TZ:-America/Denver}
+      # Unclaimed server: allow the local Docker networks to use the API without
+      # a plex.tv token, which keeps the whole check headless.
+      ALLOWED_NETWORKS: 10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
+      PLEX_UID: ${PLEX_UID:-1000}
+      PLEX_GID: ${PLEX_GID:-1000}
+    ports:
+      # 32400 is left alone: a native Plex Media Server may already own it on the
+      # host, and this stack must never interfere with a real library.
+      - "${PLEX_PORT:-32401}:32400"
+    volumes:
+      - plex-config:/config
+      - plex-transcode:/transcode
+      - ../library:/media:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:32400/identity >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  jellyfin:
+    image: jellyfin/jellyfin:latest
+    container_name: testlib-jellyfin
+    environment:
+      TZ: ${TZ:-America/Denver}
+    ports:
+      - "${JELLYFIN_PORT:-8096}:8096"
+    volumes:
+      - jellyfin-config:/config
+      - jellyfin-cache:/cache
+      - ../library:/media:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8096/System/Info/Public >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+volumes:
+  plex-config:
+  plex-transcode:
+  jellyfin-config:
+  jellyfin-cache:

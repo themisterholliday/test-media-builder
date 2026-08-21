@@ -76,6 +76,7 @@ All commands support `--only SECTION[,SECTION…]` and `--variant NAME[,NAME…]
 | `python -m scripts.generate --no-burn-in`         | Build without the on-screen PTS / media-info overlay, for one run.                                                                       |
 | `python -m scripts.generate --refresh-nfo`        | Rewrite NFOs from existing outputs without re-encoding. For metadata-only fixes.                                                          |
 | `python -m scripts.library`                       | Build the faceted show tree under `library/`. Run after every generate.                                                                   |
+| `python -m scripts.servercheck`                   | Diff what Plex and Jellyfin scanned against the manifest. Needs `make servers` first.                                                     |
 | `python -m scripts.verify`                        | Post-creation validation — decode smoke test, contract re-check, NFO parse, bitstream assertions. Writes `generated/verify_report.json`. |
 | `python -m scripts.verify --no-decode`            | Skip the decode-only pass (fastest path if you just want structural checks).                                                             |
 | `python -m scripts.manifest`                      | Emit `generated/manifest.json` — flat machine-readable index.                                                                            |
@@ -284,6 +285,44 @@ Options: `--link-mode hardlink|symlink|copy`, `--facets codec,container,audio,su
 Episode numbers are stable. They are stored in `library/.episode_map.json`, so adding a variant that sorts alphabetically first takes the next free number rather than renumbering everything after it. The tool also records what it created in `library/.library_state.json` and prunes only those paths — it never deletes a file it did not write.
 
 Streams are excluded: HLS and DASH outputs are directories, which cannot be hardlinked, and a `.mpd` is not a scraper-playable episode.
+
+## Media server validation
+
+`docker/compose.yml` runs Plex and Jellyfin against `library/`, and `scripts/servercheck.py` diffs what each one scanned against `generated/manifest.json`. The manifest is ground truth — it records what every file measurably *is* — so any disagreement is a finding rather than a guess.
+
+```bash
+make servers        # start both, library/ mounted read-only
+make servercheck    # diff both inventories against the manifest
+make servers-down   # stop and wipe their config volumes
+```
+
+Plex is published on **32401**, not 32400, so a real Plex Media Server already running on the host is never disturbed. Both containers mount `library/` **read-only**, so neither can write metadata back into the generated tree. Config lives in named volumes, so `servers-down` returns both servers to a clean state.
+
+No Plex account is required: the container runs unclaimed with `ALLOWED_NETWORKS`, which permits API access from the Docker networks. Jellyfin's setup wizard is driven over its API. Jellyfin's trickplay and chapter-image extraction are switched **off** at library creation — left on, it generates sprite sheets for every file, including the 100-chapter one.
+
+Findings are sorted into four buckets so that a real defect is not buried:
+
+| Bucket | Meaning |
+| --- | --- |
+| `missing` | the server should have indexed the file and did not |
+| `mismatched` | indexed, but the technical detail disagrees with the manifest |
+| `structural` | a consequence of the library's shape, not a defect — audio-only files are not indexed by a TV library |
+| `notes` | documented server behaviour, e.g. Plex reports a coarse aspect bucket |
+
+### What the first run found
+
+| | Plex | Jellyfin |
+| --- | --- | --- |
+| Indexed | 76 / 97 | 79 / 97 |
+| Technical mismatches | 0 | 0 |
+| Genuinely missing | **1** — DNxHD in MXF | 0 |
+| Audio-only not indexed | 20 | 18 |
+
+Three things worth knowing, all confirmed against the running servers:
+
+- **Plex will not ingest DNxHD in MXF; Jellyfin will.** A real capability difference between the two.
+- **Plex's `aspectRatio` is a coarse bucket.** Across the entire 109-variant library it emits only four values: `1.33`, `1.78`, `1.85`, `2.35`. A 1:1 square file reports `1.33` and a 9:16 vertical file also reports `1.33`. Its `width`/`height` are exact, so those are what the check compares.
+- **Both servers read chapters correctly**, including the malformed cases — Plex agrees that the out-of-order file has one chapter and the stripped file has none. Plex omits chapters unless the request asks for them with `?includeChapters=1`.
 
 ## Sources
 

@@ -45,6 +45,7 @@ scripts/
 ├── chapters.py                # pure FFMETADATA chapter builder; single source of truth for what a
 │                              #   chapters spec means, shared by the encoder and the verifier
 ├── library.py                 # projects manifest.json into library/ as faceted TV shows (hardlinks)
+├── servercheck.py             # diffs a running Plex/Jellyfin scan against manifest.json
 ├── bootstrap.py               # synthesizes missing sources with ffmpeg lavfi or user images; duration- and
 │                              #   signature-aware regeneration tracked via sources/.synthetic_sources.json
 │                              #   sentinel (never touches user files)
@@ -71,6 +72,8 @@ library/                       # faceted, scraper-facing view built by library.p
 ├── <Facet>/Season 01/         #   episodes, each a hardlink plus an <episodedetails> NFO
 ├── .episode_map.json          #   persisted episode numbers so they never shift
 └── .library_state.json        #   what this tool created, so pruning never touches anything else
+
+docker/compose.yml             # Plex + Jellyfin pointed at library/ read-only, for scan validation
 
 Makefile                       # convenience targets; all wrap python3 -m scripts.<module>
 ```

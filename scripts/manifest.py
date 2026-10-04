@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .bootstrap import image_set_fingerprint, list_source_images
-from .ffutil import bit_depth_for, ffmpeg_bin, require_binaries
+from .ffutil import bit_depth_for, config_sha256, ffmpeg_bin, ffmpeg_version, rate_to_float, require_binaries, sha256_file
 from .ids import mint, short
 from .generate import (
     CONFIG_PATH,
@@ -38,46 +38,6 @@ log = logging.getLogger("manifest")
 
 # Populated from the matrix in main() before any entry is built.
 _OVERLAY_SETTINGS: dict = {}
-
-
-def _sha256(path: Path, chunk: int = 1 << 20) -> str:
-    h = hashlib.sha256()
-    with path.open("rb") as f:
-        while True:
-            b = f.read(chunk)
-            if not b:
-                break
-            h.update(b)
-    return h.hexdigest()
-
-
-def _rate_to_float(rate: str | None) -> float | None:
-    if not rate or rate == "0/0":
-        return None
-    if "/" in rate:
-        try:
-            n, d = rate.split("/", 1)
-            return float(n) / float(d) if float(d) else None
-        except ValueError:
-            return None
-    try:
-        return float(rate)
-    except ValueError:
-        return None
-
-
-def _ffmpeg_version() -> str:
-    try:
-        out = subprocess.check_output([ffmpeg_bin(), "-version"], text=True, timeout=10)
-        m = re.search(r"ffmpeg version (\S+)", out)
-        return m.group(1) if m else "unknown"
-    except Exception:  # noqa: BLE001
-        return "unknown"
-
-
-def _matrix_sha256(cfg: dict) -> str:
-    canonical = json.dumps(cfg, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def _dar_float(stream: dict) -> float | None:
@@ -126,7 +86,7 @@ def _entry_for(plan, probe: dict | None) -> dict:
 
     if exists and target.is_file():
         out["size"] = target.stat().st_size
-        out["sha256"] = _sha256(target)
+        out["sha256"] = sha256_file(target)
 
     if probe:
         fmt = probe.get("format", {}) or {}
@@ -148,7 +108,7 @@ def _entry_for(plan, probe: dict | None) -> dict:
 
         if video_streams:
             vs = video_streams[0]
-            fps = _rate_to_float(vs.get("avg_frame_rate")) or _rate_to_float(vs.get("r_frame_rate"))
+            fps = rate_to_float(vs.get("avg_frame_rate")) or rate_to_float(vs.get("r_frame_rate"))
             out["video"] = {
                 "codec": vs.get("codec_name"),
                 "profile": vs.get("profile"),
@@ -246,8 +206,8 @@ def main(argv: list[str] | None = None) -> int:
     out = {
         "_meta": {
             "generated_at": datetime.now(timezone.utc).isoformat(),
-            "ffmpeg_version": _ffmpeg_version(),
-            "matrix_sha256": _matrix_sha256(cfg),
+            "ffmpeg_version": ffmpeg_version(),
+            "matrix_sha256": config_sha256(cfg),
             # The matrix hash covers config only. Source images live outside it, so
             # fingerprint them separately or two visually different libraries would
             # claim identical provenance.

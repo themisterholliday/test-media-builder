@@ -46,10 +46,12 @@ from .ffutil import (
     FFExecError,
     configure_binaries,
     ffmpeg_bin,
+    ffmpeg_version,
     ffprobe,
     require_binaries,
     require_filters,
     resolve_binary,
+    sha256_file,
     run_ffmpeg,
 )
 from .nfo_writer import build_nfo, write_nfo
@@ -105,28 +107,6 @@ class Outcome:
     message: str = ""
     ffmpeg_cmd: list[str] | None = None
     probe: dict | None = None
-
-
-def _sha256(path: Path, chunk: int = 1 << 20) -> str:
-    """Compute hex SHA-256 of a file."""
-    h = hashlib.sha256()
-    with path.open("rb") as f:
-        while True:
-            b = f.read(chunk)
-            if not b:
-                break
-            h.update(b)
-    return h.hexdigest()
-
-
-def _ffmpeg_version() -> str:
-    """Return the running ffmpeg binary version string, or 'unknown'."""
-    try:
-        out = subprocess.check_output([ffmpeg_bin(), "-version"], text=True, timeout=10)
-        m = re.search(r"ffmpeg version (\S+)", out)
-        return m.group(1) if m else "unknown"
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
-        return "unknown"
 
 
 def _load_config(path: Path) -> dict:
@@ -683,7 +663,7 @@ def _write_nfo_for(
     ):
         src = SOURCES_DIR / fname
         if src.exists() and plan.kind != "external":
-            source_refs.append({"kind": key, "file": src.name, "sha256": _sha256(src)})
+            source_refs.append({"kind": key, "file": src.name, "sha256": sha256_file(src)})
     if plan.kind != "external":
         # Record any user-supplied stills that produced the master's picture, so a
         # swapped image is detectable from the NFO alone.
@@ -691,14 +671,14 @@ def _write_nfo_for(
             source_refs.append({
                 "kind": "source_image",
                 "file": image.name,
-                "sha256": _sha256(image),
+                "sha256": sha256_file(image),
             })
     if extra_source is not None:
         source_refs.append({
             "kind": "external",
             "file": str(extra_source.name),
             "path": str(extra_source),
-            "sha256": _sha256(extra_source),
+            "sha256": sha256_file(extra_source),
             "license_note": v.get("license_note", ""),
         })
 
@@ -709,7 +689,7 @@ def _write_nfo_for(
         tags.append(f)
 
     target = _probe_target(plan)
-    output_sha = _sha256(target) if target.is_file() else None
+    output_sha = sha256_file(target) if target.is_file() else None
     output_size = target.stat().st_size if target.is_file() else None
 
     payload = build_nfo(
@@ -906,11 +886,11 @@ def main(argv: list[str] | None = None) -> int:
         return _print_check(plans)
 
     if ns.refresh_nfo:
-        count = _refresh_nfos(plans, defaults, _ffmpeg_version())
+        count = _refresh_nfos(plans, defaults, ffmpeg_version())
         sys.stdout.write(f"refreshed {count} nfo file(s)\n")
         return 0
 
-    ffv = _ffmpeg_version()
+    ffv = ffmpeg_version()
     outcomes: list[Outcome] = []
 
     def _run_one(plan: Plan) -> Outcome:

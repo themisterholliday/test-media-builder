@@ -13,7 +13,7 @@ from typing import Any, Iterable
 from xml.dom import minidom
 from xml.etree import ElementTree as ET
 
-from .ffutil import bit_depth_for
+from .ffutil import bit_depth_for, rate_to_float
 from .ids import mint, short
 
 log = logging.getLogger("nfo")
@@ -45,23 +45,6 @@ def _pick_int(*candidates: Any) -> int | None:
     return None
 
 
-def _rate_to_float(rate: str | None) -> float | None:
-    """Parse ffprobe rate strings like '24000/1001' into a float."""
-    if not rate or rate == "0/0":
-        return None
-    if "/" in rate:
-        num, den = rate.split("/", 1)
-        try:
-            n, d = float(num), float(den)
-            return n / d if d else None
-        except ValueError:
-            return None
-    try:
-        return float(rate)
-    except ValueError:
-        return None
-
-
 def add_streamdetails(root: ET.Element, probe: dict) -> None:
     """Append the Kodi <fileinfo><streamdetails> block.
 
@@ -87,7 +70,7 @@ def add_streamdetails(root: ET.Element, probe: dict) -> None:
                 _sub(v, "durationinseconds", int(round(float(duration))))
             except ValueError:
                 pass
-        fps = _rate_to_float(vs.get("avg_frame_rate")) or _rate_to_float(vs.get("r_frame_rate"))
+        fps = rate_to_float(vs.get("avg_frame_rate")) or rate_to_float(vs.get("r_frame_rate"))
         if fps:
             _sub(v, "framerate", f"{fps:.3f}")
 
@@ -196,7 +179,7 @@ def build_nfo(
         v_detail.set("color_primaries", str(vs.get("color_primaries", "") or ""))
         v_detail.set("color_transfer", str(vs.get("color_transfer", "") or ""))
         v_detail.set("color_space", str(vs.get("color_space", "") or ""))
-        fps = _rate_to_float(vs.get("avg_frame_rate")) or _rate_to_float(vs.get("r_frame_rate"))
+        fps = rate_to_float(vs.get("avg_frame_rate")) or rate_to_float(vs.get("r_frame_rate"))
         if fps:
             v_detail.set("fps", f"{fps:.3f}")
         if vs.get("width") and vs.get("height"):

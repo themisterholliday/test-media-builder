@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import functools
 import json
+import hashlib
 import logging
 import os
 import re
@@ -255,3 +256,47 @@ def ffprobe(path: Path, *, timeout: int = 60) -> dict:
         return json.loads(proc.stdout)
     except json.JSONDecodeError as e:
         raise FFExecError(cmd, proc.returncode, f"invalid probe JSON: {e}") from e
+
+def ffmpeg_version() -> str:
+    """Return the ffmpeg version string, or "unknown" when it cannot be read."""
+    try:
+        out = subprocess.check_output([ffmpeg_bin(), "-version"], text=True, timeout=10)
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
+        return "unknown"
+    match = re.search(r"ffmpeg version (\S+)", out)
+    return match.group(1) if match else "unknown"
+
+
+def sha256_file(path: Path, chunk: int = 1 << 20) -> str:
+    """Return the SHA-256 of a file, read in chunks so a 600 MB master is fine."""
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        while True:
+            block = handle.read(chunk)
+            if not block:
+                break
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def config_sha256(cfg: dict) -> str:
+    """Fingerprint a loaded config, so an artifact can be tied to what produced it."""
+    canonical = json.dumps(cfg, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def rate_to_float(rate: str | None) -> float | None:
+    """Parse an ffprobe rate such as "24000/1001" or "24" into a float.
+
+    Returns None for a missing rate, the "0/0" ffprobe emits when it has none, or
+    anything unparseable. Callers treat None as "not reported" rather than zero.
+    """
+    if not rate or rate == "0/0":
+        return None
+    try:
+        if "/" in rate:
+            numerator, denominator = (float(x) for x in rate.split("/", 1))
+            return numerator / denominator if denominator else None
+        return float(rate)
+    except ValueError:
+        return None

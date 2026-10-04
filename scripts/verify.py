@@ -25,7 +25,7 @@ from xml.etree import ElementTree as ET
 
 from . import chapters as chapters_mod
 from .encoders import effective_duration
-from .ffutil import FFExecError, ffmpeg_bin, require_binaries
+from .ffutil import FFExecError, config_sha256, ffmpeg_bin, require_binaries
 from .generate import (
     CONFIG_PATH,
     GENERATED_DIR,
@@ -448,12 +448,6 @@ def _verify_overlay_record(plan, root, report: VariantReport) -> None:
         report.checks["overlay.matches_config"] = True
 
 
-def _matrix_sha256(cfg: dict) -> str:
-    """Fingerprint the matrix so a report can be tied to the config that produced it."""
-    canonical = json.dumps(cfg, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
-
-
 def _verify_audio_channels(plan, probe: dict, report: VariantReport) -> None:
     """Assert the audio track carries the channel count the matrix declares.
 
@@ -608,7 +602,7 @@ def main(argv: list[str] | None = None) -> int:
         "_meta": {
             "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "ffmpeg": ffmpeg_bin(),
-            "matrix_sha256": _matrix_sha256(cfg),
+            "matrix_sha256": config_sha256(cfg),
         },
         "summary": summary,
         "total": len(reports),

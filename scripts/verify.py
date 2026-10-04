@@ -4,7 +4,7 @@ Runs after generate.py. For each declared variant:
   1. Existence + non-zero size check.
   2. Decode smoke test (ffmpeg -v error -i X -f null -) — must return 0 with no stderr.
   3. Structural contract re-check (same logic as build-time, re-run post-hoc).
-  4. NFO parse + uniqueid-matches-filename check.
+  4. NFO parse + uniqueid check (UUID and matrix name).
   5. Per-flag bitstream assertions (moof presence for fMP4, annex-b start codes,
      HDR metadata persistence, missing-metadata enforcement, track-count contracts).
 
@@ -13,18 +13,19 @@ Writes generated/verify_report.json and exits non-zero if any variant failed.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import logging
-import re
 import subprocess
 import sys
+from datetime import datetime, timezone
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
 from . import chapters as chapters_mod
 from .encoders import effective_duration
-from .ffutil import FFExecError, ffmpeg_bin, ffprobe, require_binaries
+from .ffutil import FFExecError, ffmpeg_bin, require_binaries
 from .generate import (
     CONFIG_PATH,
     GENERATED_DIR,
@@ -38,6 +39,7 @@ from .generate import (
     _probe_target,
     _verify_contract,
 )
+from .ids import mint
 
 log = logging.getLogger("verify")
 
@@ -113,11 +115,6 @@ def _read_nfo(path: Path) -> tuple[ET.Element | None, str]:
         return tree.getroot(), ""
     except (ET.ParseError, OSError) as e:
         return None, f"nfo parse failed: {e}"
-
-
-def _bytes_head(path: Path, n: int = 8) -> bytes:
-    with path.open("rb") as f:
-        return f.read(n)
 
 
 def _has_box(path: Path, fourcc: bytes, max_scan: int = 4 * 1024 * 1024) -> bool:
@@ -398,9 +395,25 @@ def _verify_nfo(plan, report: VariantReport) -> None:
         report.checks["nfo.parses"] = False
         return
     report.checks["nfo.parses"] = True
-    uid = root.findtext("uniqueid")
-    if uid != plan.variant["name"]:
-        report.errors.append(f"nfo uniqueid mismatch: {uid!r} != {plan.variant['name']!r}")
+    # Identity is carried by two ids: the default one is the UUID, and a second
+    # `testlib-name` element holds the matrix name. Both are checked, because a
+    # mismatch in either means the sidecar belongs to a different variant.
+    ids = {node.get("type"): (node.text or "") for node in root.findall("uniqueid")}
+    want_uuid = plan.variant.get("uuid") or mint(plan.variant["name"])
+    want_name = plan.variant["name"]
+    got_uuid = ids.get("testlib", "")
+    got_name = ids.get("testlib-name", "")
+
+    # An NFO written before identifiers existed carries the name in the default slot.
+    if got_uuid == want_name and not got_name:
+        report.errors.append(
+            f"nfo predates asset identity: uniqueid is {got_uuid!r}, expected {want_uuid!r} "
+            f"-- regenerate with `python3 -m scripts.generate --refresh-nfo`")
+        report.checks["nfo.uniqueid_match"] = False
+    elif got_uuid != want_uuid or got_name != want_name:
+        report.errors.append(
+            f"nfo uniqueid mismatch: uuid {got_uuid!r} != {want_uuid!r} "
+            f"or name {got_name!r} != {want_name!r}")
         report.checks["nfo.uniqueid_match"] = False
     else:
         report.checks["nfo.uniqueid_match"] = True
@@ -433,6 +446,41 @@ def _verify_overlay_record(plan, root, report: VariantReport) -> None:
         report.checks["overlay.matches_config"] = False
     else:
         report.checks["overlay.matches_config"] = True
+
+
+def _matrix_sha256(cfg: dict) -> str:
+    """Fingerprint the matrix so a report can be tied to the config that produced it."""
+    canonical = json.dumps(cfg, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _verify_audio_channels(plan, probe: dict, report: VariantReport) -> None:
+    """Assert the audio track carries the channel count the matrix declares.
+
+    Several encoders accept a channel count they cannot deliver and exit 0 anyway:
+    E-AC-3 and AC-3 downmix 7.1 to 5.1(side), ALAC yields 7 channels in a 6.1(back)
+    layout, and TrueHD writes a track reporting 0 channels. Nothing else in the
+    pipeline notices, so a variant would claim 8 channels while shipping 6 -- exactly
+    the quiet mismatch this library exists to catch.
+
+    Multi-track edge cases declare `audio_tracks` rather than `audio` and are checked
+    for stream count elsewhere, so they are skipped here.
+    """
+    declared = (plan.variant.get("audio") or {}).get("channels")
+    if not declared:
+        return
+    audio_streams = [s for s in probe.get("streams", []) if s.get("codec_type") == "audio"]
+    if not audio_streams:
+        return
+    actual = audio_streams[0].get("channels")
+    if actual == declared:
+        report.checks["audio.channels_match"] = True
+        return
+    report.checks["audio.channels_match"] = False
+    layout = audio_streams[0].get("channel_layout") or "unknown"
+    report.errors.append(
+        f"audio channels: declared {declared}, file carries {actual} ({layout}) -- "
+        f"the encoder accepted the request and delivered something else")
 
 
 def _verify_plan(plan, skip_decode: bool = False, decode_timeout: int = _DECODE_TIMEOUT_FLOOR) -> VariantReport:
@@ -489,6 +537,7 @@ def _verify_plan(plan, skip_decode: bool = False, decode_timeout: int = _DECODE_
     for ce in contract_errs:
         report.errors.append(f"contract: {ce}")
 
+    _verify_audio_channels(plan, probe, report)
     _verify_nfo(plan, report)
     _bitstream_assertions(plan, probe, report)
 
@@ -553,6 +602,14 @@ def main(argv: list[str] | None = None) -> int:
         summary[r.status] = summary.get(r.status, 0) + 1
 
     out = {
+        # Records what produced this run. A report read without it cannot be told
+        # apart from a stale one, and a stale report that says "ok" is worse than
+        # no report at all.
+        "_meta": {
+            "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "ffmpeg": ffmpeg_bin(),
+            "matrix_sha256": _matrix_sha256(cfg),
+        },
         "summary": summary,
         "total": len(reports),
         "variants": [asdict(r) for r in reports],

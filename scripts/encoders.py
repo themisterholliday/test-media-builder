@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from .ids import short
 from .overlay import is_enabled as overlay_enabled, variant_overlay_filters
 
 log = logging.getLogger("encoders")
@@ -146,7 +147,26 @@ def _build_vf_chain(
     # aspect, so scaling a 16:9 master to 720x540 silently yields DAR 16:9 rather than
     # the 4:3 the dimensions imply. Declare a SAR to opt into anamorphic on purpose.
     parts.append(f"setsar={video['sar']}" if video.get("sar") else "setsar=1")
+    # Colour signalling must be set here, not as an output option: ffmpeg 9 silently
+    # ignores -color_primaries and -color_trc on the output (it still honours
+    # -colorspace), so a variant whose codec does not carry the signalling itself
+    # would be tagged "unknown" with no warning. setparams works for every encoder.
+    params = _setparams_filter(video)
+    if params:
+        parts.append(params)
     return ",".join(parts)
+
+
+def _setparams_filter(video: dict) -> str:
+    """Build a setparams filter for the declared colour signalling, or "" if none."""
+    hdr = video.get("hdr") or {}
+    fields = {
+        "color_primaries": hdr.get("color_primaries"),
+        "color_trc": hdr.get("color_trc"),
+        "colorspace": hdr.get("colorspace") or (video.get("colorspace") if not hdr else None),
+    }
+    declared = [f"{k}={v}" for k, v in fields.items() if v]
+    return f"setparams={':'.join(declared)}" if declared else ""
 
 
 def _variant_overlay(variant: dict | None, defaults: dict, *, width: int, height: int, framerate) -> list[str]:
@@ -220,26 +240,62 @@ def _common_video_args(
     args += ["-vf", _build_vf_chain(video, width, height, overlay_filters)]
     args += ["-r", str(effective_fps)]
 
+    # Colour signalling is applied by the setparams filter in _build_vf_chain.
+    # x265_params stays here: it writes the signalling into the bitstream VUI, which
+    # is a different layer from the container tags and worth keeping in step.
     hdr = video.get("hdr") or {}
-    if hdr:
-        if hdr.get("color_primaries"):
-            args += ["-color_primaries", hdr["color_primaries"]]
-        if hdr.get("color_trc"):
-            args += ["-color_trc", hdr["color_trc"]]
-        if hdr.get("colorspace"):
-            args += ["-colorspace", hdr["colorspace"]]
-        if hdr.get("x265_params"):
-            args += ["-x265-params", hdr["x265_params"]]
+    if hdr.get("x265_params"):
+        args += ["-x265-params", hdr["x265_params"]]
 
     if video.get("color_range"):
         args += ["-color_range", str(video["color_range"])]
-    if video.get("colorspace") and not hdr:
-        args += ["-colorspace", str(video["colorspace"])]
 
     if video.get("tag"):
         args += ["-tag:v", video["tag"]]
 
     return args
+
+
+# Containers that both accept these tags and have a reader that surfaces them.
+# ISOBMFF is the set Plex parses; Matroska and WebM are read by Jellyfin. MPEG-TS
+# has no metadata container at all, and the remaining raw formats are not worth the
+# risk of perturbing an edge case that exists to test malformed structure.
+IDENTITY_CONTAINERS = frozenset({"mp4", "m4v", "mov", "m4a", "mkv", "webm"})
+
+# Prefix that makes the identifier greppable in whatever field a server exposes it in.
+UUID_TAG_PREFIX = "testlib-uuid="
+
+
+def identity_metadata_args(variant: dict) -> list[str]:
+    """Return -metadata args stamping the variant identity into the container.
+
+    Plex reads `synopsis` in preference to `description` and `comment`, and shows it
+    as the item summary; it takes `title` over the filename. Both are ISOBMFF-only in
+    Plex, so this is enrichment on top of the filename, never a replacement for it.
+    Returns an empty list for containers with no reader, which keeps those files
+    byte-for-byte what they were before.
+    """
+    container = (variant.get("container") or "").lower()
+    if container not in IDENTITY_CONTAINERS:
+        return []
+    variant_uuid = variant.get("uuid")
+    if not variant_uuid:
+        return []
+
+    stamp = f"{UUID_TAG_PREFIX}{variant_uuid}"
+    title = variant.get("title") or variant["name"]
+    description = variant.get("description") or ""
+    # The identifier leads so a truncated summary still carries it.
+    summary = f"{stamp} | {variant['name']}"
+    if description:
+        summary = f"{summary} | {description}"
+
+    return [
+        "-metadata", f"title={title} [{short(variant_uuid)}]",
+        "-metadata", f"synopsis={summary}",
+        "-metadata", f"description={summary}",
+        "-metadata", f"comment={stamp}",
+    ]
 
 
 def _common_audio_args(audio: dict) -> list[str]:

@@ -31,6 +31,7 @@ from . import chapters as chapters_mod
 from .bootstrap import ensure_sources, list_source_images
 from .encoders import (
     build_audio_only,
+    identity_metadata_args,
     build_edge,
     build_stream,
     build_subtitle_embedded,
@@ -61,7 +62,7 @@ SOURCES_DIR = ROOT / "sources"
 GENERATED_DIR = ROOT / "generated"
 CONFIG_PATH = ROOT / "config" / "media_matrix.json"
 
-SECTIONS = ("video", "audio", "subtitles", "streams", "edge", "external")
+SECTIONS = ("video", "masters", "audio", "subtitles", "streams", "edge", "external")
 
 CONTAINER_EXT = {
     "mp4": "mp4",
@@ -217,6 +218,19 @@ def _plan_edge(variant: dict) -> Plan:
     return Plan(variant=variant, section="edge", out_path=out_path, nfo_path=nfo_path, kind="edge")
 
 
+def _plan_master(variant: dict) -> Plan:
+    """Plan a real-content master.
+
+    Masters are ingested exactly like an external sample -- the file already exists
+    and is copied in, never re-encoded -- so the kind stays "external" while the
+    section distinguishes them in reports and in the library tree.
+    """
+    fname = _filename_for(variant, variant["container"])
+    out_path = GENERATED_DIR / "masters" / fname
+    return Plan(variant=variant, section="masters", out_path=out_path,
+                nfo_path=out_path.with_suffix(".nfo"), kind="external")
+
+
 def _plan_external(variant: dict) -> Plan:
     container = variant["container"]
     fname = _filename_for(variant, container)
@@ -232,6 +246,7 @@ def _all_plans(cfg: dict) -> list[Plan]:
     plans += [_plan_subtitle(v) for v in cfg.get("subtitle_variants", [])]
     plans += [_plan_stream(v) for v in cfg.get("stream_variants", [])]
     plans += [_plan_edge(v) for v in cfg.get("edge_cases", [])]
+    plans += [_plan_master(v) for v in cfg.get("master_variants", [])]
     plans += [_plan_external(v) for v in cfg.get("external_variants", [])]
     return plans
 
@@ -295,7 +310,10 @@ def _verify_contract(plan: Plan, probe: dict) -> list[str]:
         if not video_streams:
             if not (plan.kind == "edge" and "audio_only" in set(v.get("flags", []))):
                 errs.append("expected at least one video stream")
-        elif plan.kind == "video" or plan.kind == "subtitle_embedded":
+        elif plan.kind in ("video", "subtitle_embedded", "external"):
+            # An ingested file is not built here, so its declaration is the only thing
+            # asserting the drop-in is the file the matrix means. Fields are checked
+            # only when declared, which keeps the unfilled external slots valid.
             vs = video_streams[0]
             expected_pix = v.get("video", {}).get("pix_fmt")
             if expected_pix and vs.get("pix_fmt") != expected_pix:
@@ -305,6 +323,27 @@ def _verify_contract(plan: Plan, probe: dict) -> list[str]:
                 errs.append(
                     f"video codec mismatch: expected {expected_codec_family}, got {vs.get('codec_name')}"
                 )
+            if plan.kind == "external":
+                # Geometry, colour and channel count are asserted only for ingested
+                # files. A built variant's declared width/height is the content area
+                # before `pad_to` and before the scale filter rewrites SAR, so the
+                # declaration and the output legitimately differ; that geometry has
+                # its own model and its own checks.
+                declared_hdr = (v.get("video") or {}).get("hdr") or {}
+                for field, key in (("color_primaries", "color_primaries"),
+                                   ("color_trc", "color_transfer"),
+                                   ("colorspace", "color_space")):
+                    want = declared_hdr.get(field)
+                    if want and vs.get(key) != want:
+                        errs.append(f"video {field} mismatch: expected {want}, got {vs.get(key)}")
+                for field in ("width", "height"):
+                    want = v.get(field)
+                    if want and vs.get(field) != want:
+                        errs.append(f"{field} mismatch: expected {want}, got {vs.get(field)}")
+                want_ch = (v.get("audio") or {}).get("channels")
+                if want_ch and audio_streams and audio_streams[0].get("channels") != want_ch:
+                    errs.append(f"audio channels mismatch: expected {want_ch}, "
+                                f"got {audio_streams[0].get('channels')}")
 
     if plan.kind == "subtitle_embedded":
         if len(subtitle_streams) != 1:
@@ -337,23 +376,41 @@ def _chapters_path_for(plan: Plan, defaults: dict) -> Path | None:
     return chapters_mod.write_ffmetadata(path, spec, duration)
 
 
+def _with_identity(args: list[str], variant: dict) -> list[str]:
+    """Insert the identity metadata immediately before the output path.
+
+    ffmpeg applies `-metadata` to the output file it precedes, so position matters:
+    the tags must sit after every codec option and before the trailing path.
+
+    A variant flagged `missing_metadata` exists to carry no container tags at all.
+    It builds with `-map_metadata -1`, and appending tags after that strip would
+    silently defeat the only thing the variant tests, so it is skipped.
+    """
+    if "missing_metadata" in set(variant.get("flags", [])):
+        return args
+    stamp = identity_metadata_args(variant)
+    if not stamp:
+        return args
+    return args[:-1] + stamp + args[-1:]
+
+
 def _build_command(plan: Plan, defaults: dict) -> tuple[list[str], Path]:
     """Return (ffmpeg_args, primary_output_path_for_probe)."""
     v = plan.variant
     chapters_path = _chapters_path_for(plan, defaults)
     if plan.kind == "video":
-        return build_video(v, defaults, SOURCES_DIR, plan.out_path, chapters_path), plan.out_path
+        return _with_identity(build_video(v, defaults, SOURCES_DIR, plan.out_path, chapters_path), v), plan.out_path
     if plan.kind == "audio":
-        return build_audio_only(v, defaults, SOURCES_DIR, plan.out_path), plan.out_path
+        return _with_identity(build_audio_only(v, defaults, SOURCES_DIR, plan.out_path), v), plan.out_path
     if plan.kind == "subtitle_external":
         return build_subtitle_external(v, defaults, SOURCES_DIR, plan.out_path), plan.out_path
     if plan.kind == "subtitle_embedded":
-        return build_subtitle_embedded(v, defaults, SOURCES_DIR, plan.out_path), plan.out_path
+        return _with_identity(build_subtitle_embedded(v, defaults, SOURCES_DIR, plan.out_path), v), plan.out_path
     if plan.kind == "stream":
         args, manifest = build_stream(v, defaults, SOURCES_DIR, plan.out_path)
         return args, manifest
     if plan.kind == "edge":
-        return build_edge(v, defaults, SOURCES_DIR, plan.out_path, chapters_path), plan.out_path
+        return _with_identity(build_edge(v, defaults, SOURCES_DIR, plan.out_path, chapters_path), v), plan.out_path
     raise ValueError(f"no command builder for kind: {plan.kind}")
 
 
@@ -498,6 +555,22 @@ def _probe_for(plan: Plan) -> dict:
     return ffprobe(target)
 
 
+def _ingest(src: Path, dst: Path) -> None:
+    """Place a supplied file into generated/, hardlinking when the filesystem allows.
+
+    The masters run to gigabytes and are never modified in place, so a hardlink is
+    both correct and the difference between a few kilobytes and several gigabytes of
+    duplication. A cross-device link or an unsupported filesystem falls back to a copy.
+    """
+    if dst.exists():
+        dst.unlink()
+    try:
+        os.link(src, dst)
+    except OSError as e:
+        log.debug("hardlink failed for %s (%s); copying instead", dst.name, e)
+        shutil.copy2(src, dst)
+
+
 def _execute(plan: Plan, defaults: dict, *, dry_run: bool, force: bool, ffmpeg_version: str) -> Outcome:
     if plan.kind == "external":
         src = Path(plan.variant["source_path"])
@@ -508,7 +581,7 @@ def _execute(plan: Plan, defaults: dict, *, dry_run: bool, force: bool, ffmpeg_v
 
         plan.out_path.parent.mkdir(parents=True, exist_ok=True)
         if force or not plan.out_path.exists():
-            shutil.copy2(src, plan.out_path)
+            _ingest(src, plan.out_path)
 
         probe = _probe_for(plan)
         errs = _verify_contract(plan, probe)
@@ -641,6 +714,8 @@ def _write_nfo_for(
 
     payload = build_nfo(
         variant_id=v["name"],
+        variant_uuid=v.get("uuid"),
+        attribution=v.get("attribution"),
         title=v.get("title", v["name"]),
         description=v.get("description", ""),
         tags=tags,

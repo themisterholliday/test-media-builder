@@ -57,6 +57,8 @@ class FFResult:
 # Set from the matrix config at startup. Environment variables still win, so a
 # one-off run can point at a different build without editing the config.
 _CONFIGURED: dict[str, str] = {}
+# Paths already warned about, so the fallback notice appears once per run.
+_WARNED_BINARIES: set[str] = set()
 
 
 def configure_binaries(ffmpeg: str | None = None, ffprobe: str | None = None) -> None:
@@ -70,14 +72,36 @@ def configure_binaries(ffmpeg: str | None = None, ffprobe: str | None = None) ->
         _CONFIGURED["ffprobe"] = ffprobe
 
 
+def _pick_binary(env_var: str, configured_key: str, default: str) -> str:
+    """Choose a binary: environment override, then matrix config, then PATH.
+
+    The matrix ships an absolute path to a specific ffmpeg build. That path is
+    correct on the machine that wrote it and absent everywhere else, so an
+    unusable configured path falls through to PATH instead of failing the run.
+    A machine-specific value in shared config must not stop anyone else building.
+    """
+    override = os.environ.get(env_var)
+    if override:
+        return override
+    configured = _CONFIGURED.get(configured_key)
+    if configured:
+        if resolve_binary(configured):
+            return configured
+        if configured not in _WARNED_BINARIES:
+            _WARNED_BINARIES.add(configured)
+            log.warning("configured %s is not executable here (%s); falling back to %r on PATH",
+                        configured_key, configured, default)
+    return default
+
+
 def ffmpeg_bin() -> str:
     """Return the ffmpeg command to use. FFMPEG_BIN wins over the configured path."""
-    return os.environ.get("FFMPEG_BIN") or _CONFIGURED.get("ffmpeg") or DEFAULT_FFMPEG
+    return _pick_binary("FFMPEG_BIN", "ffmpeg", DEFAULT_FFMPEG)
 
 
 def ffprobe_bin() -> str:
     """Return the ffprobe command to use. FFPROBE_BIN wins over the configured path."""
-    return os.environ.get("FFPROBE_BIN") or _CONFIGURED.get("ffprobe") or DEFAULT_FFPROBE
+    return _pick_binary("FFPROBE_BIN", "ffprobe", DEFAULT_FFPROBE)
 
 
 def resolve_binary(name: str) -> str | None:

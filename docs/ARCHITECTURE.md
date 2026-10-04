@@ -957,12 +957,25 @@ Edge cases often need a special ffmpeg invocation that doesn't fit `build_video`
      "audio": {...}
    }
    ```
-3. In `scripts/encoders.py`, add a branch to `build_edge`:
+3. In `scripts/encoders.py`, write a handler and add it to `_EDGE_HANDLERS`:
    ```python
-   if "negative_pts" in flags:
-       # construct the special ffmpeg invocation and return the arg list
+   def _edge_negative_pts(variant, defaults, sources_dir, output_path,
+                          chapters_path, width, height) -> list[str]:
+       """Stream with timestamps that start below zero."""
+       ...        # build and return the arg list
+
+   _EDGE_HANDLERS = (
        ...
+       ("negative_pts", _edge_negative_pts),
+   )
    ```
+   Every handler takes the same arguments whether or not it uses them all, so
+   `build_edge` can call any of them the same way.
+
+   **Order is load-bearing.** The first matching flag wins, and `chapters` sits
+   last so a malformed-chapter variant that also carries `missing_metadata` is
+   handled by the strip path instead. Put a new handler where its precedence
+   belongs, not at the end by default.
 4. In `scripts/verify.py`, extend `_bitstream_assertions` with a specific check:
    ```python
    if "negative_pts" in flags:

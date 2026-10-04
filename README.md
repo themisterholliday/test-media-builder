@@ -310,14 +310,10 @@ The validation harness above runs headless. To actually *play* the test files fr
 
 Everything is local and self-contained: each person runs their own server against their own build. Nothing is hosted, shared, or coupled to anyone else's account.
 
-```bash
-make generate && make library      # build the media and the library tree
-make servers                       # start Plex (and Jellyfin) in docker
-make plex-setup                    # create the three libraries and scan
-make plex-claim TOKEN=claim-xxxx   # attach the server to your Plex account
-```
+The commands are in [Common flows](#play-the-media-from-a-plex-app). The rest of this
+section is what they do and why, plus what to do when something is wrong.
 
-Get the token from [plex.tv/claim](https://plex.tv/claim) and pass it straight in:
+Get the claim token from [plex.tv/claim](https://plex.tv/claim) and pass it straight in:
 
 ```bash
 make plex-claim TOKEN=claim-xxxxxxxxxxxxxxxxxxxx

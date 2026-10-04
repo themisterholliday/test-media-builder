@@ -42,8 +42,9 @@ bootstrap:
 generate:
 	$(PY) -m scripts.generate --jobs $(JOBS) $(if $(FORCE),--force) $(if $(DURATION),--duration $(DURATION)) $(if $(ONLY),--only $(ONLY)) $(if $(VARIANT),--variant $(VARIANT))
 
+# Kept as an alias: FORCE=1 on any build target is the documented spelling.
 force:
-	$(PY) -m scripts.generate --force --jobs $(JOBS) $(if $(DURATION),--duration $(DURATION)) $(if $(ONLY),--only $(ONLY)) $(if $(VARIANT),--variant $(VARIANT))
+	$(MAKE) generate FORCE=1
 
 dry-run:
 	$(PY) -m scripts.generate --dry-run $(if $(DURATION),--duration $(DURATION)) $(if $(ONLY),--only $(ONLY)) $(if $(VARIANT),--variant $(VARIANT))

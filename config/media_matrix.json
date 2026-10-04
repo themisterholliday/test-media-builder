@@ -26,6 +26,7 @@
   "video_variants": [
     {
       "name": "h264_mp4_baseline",
+      "uuid": "14301d59-36dd-559f-919f-0741a4fb5d96",
       "title": "H.264 MP4 Baseline Profile",
       "description": "H.264 baseline profile in MP4 with AAC stereo. Legacy-compatible playback baseline.",
       "container": "mp4",
@@ -46,6 +47,7 @@
     },
     {
       "name": "h264_mp4_high",
+      "uuid": "33805ec8-15d0-5d1e-b6b4-7e1e6694667c",
       "title": "H.264 MP4 High Profile",
       "description": "H.264 high profile 4.1 in MP4 with AAC stereo.",
       "container": "mp4",
@@ -66,6 +68,7 @@
     },
     {
       "name": "hevc_mp4_8bit",
+      "uuid": "691ea202-e131-5f0d-b41c-5aae4a24e581",
       "title": "HEVC MP4 Main 8-bit",
       "description": "HEVC main profile 8-bit in MP4 with AAC stereo.",
       "container": "mp4",
@@ -86,6 +89,7 @@
     },
     {
       "name": "hevc_mp4_10bit_hdr10_bt2020",
+      "uuid": "eb16c259-5cc1-5ab2-ac9a-e29fda07eba8",
       "title": "HEVC MP4 10-bit HDR10 BT.2020",
       "description": "HEVC main10 10-bit 1080p in MP4 with static HDR10 metadata, BT.2020 primaries, SMPTE ST 2084 (PQ) transfer, E-AC-3 5.1.",
       "container": "mp4",
@@ -115,6 +119,7 @@
     },
     {
       "name": "hevc_mp4_10bit_hlg_bt2020",
+      "uuid": "8c845cba-6f8a-5f0c-a3d7-0a8b3e44ce08",
       "title": "HEVC MP4 10-bit HLG BT.2020",
       "description": "HEVC main10 10-bit 1080p in MP4 with HLG (ARIB STD-B67) transfer, BT.2020, E-AC-3 5.1.",
       "container": "mp4",
@@ -144,6 +149,7 @@
     },
     {
       "name": "av1_mkv_opus",
+      "uuid": "8033091b-59c8-5f96-a0b6-f8a8c293f496",
       "title": "AV1 MKV with Opus",
       "description": "AV1 video in Matroska with Opus stereo audio. SVT-AV1 encoder.",
       "container": "mkv",
@@ -162,6 +168,7 @@
     },
     {
       "name": "vp9_webm_opus",
+      "uuid": "fce54038-872c-5200-a7c7-0a7ddbc1584a",
       "title": "VP9 WebM with Opus",
       "description": "VP9 video in WebM with Opus stereo audio.",
       "container": "webm",
@@ -180,6 +187,7 @@
     },
     {
       "name": "h264_mkv_ac3_51",
+      "uuid": "cf64ce44-3421-55d1-90fc-3d6e80d12e88",
       "title": "H.264 MKV with AC3 5.1",
       "description": "H.264 high profile in Matroska with AC-3 5.1 surround.",
       "container": "mkv",
@@ -199,6 +207,7 @@
     },
     {
       "name": "h264_ts_aac",
+      "uuid": "9856c9c4-9548-5688-84cc-5fcfdf44d3dd",
       "title": "H.264 MPEG-TS with AAC",
       "description": "H.264 main profile in MPEG-TS with AAC stereo. Broadcast-style container.",
       "container": "ts",
@@ -218,6 +227,7 @@
     },
     {
       "name": "h264_mp4_mp3",
+      "uuid": "e5a3cd3e-2c72-5600-b0e8-34200f1e8f9c",
       "title": "H.264 MP4 with MP3",
       "description": "H.264 main profile in MP4 with MP3 stereo audio.",
       "container": "mp4",
@@ -237,6 +247,7 @@
     },
     {
       "name": "h264_mkv_flac",
+      "uuid": "b7a932dd-b99f-56ad-9522-c6fead0a7a9d",
       "title": "H.264 MKV with FLAC",
       "description": "H.264 high profile in Matroska with FLAC lossless stereo.",
       "container": "mkv",
@@ -255,6 +266,7 @@
     },
     {
       "name": "h264_mkv_pcm",
+      "uuid": "11da5b6f-9d59-5ccf-81fd-d8b7733fa3c4",
       "title": "H.264 MKV with PCM",
       "description": "H.264 high profile in Matroska with PCM 16-bit LE stereo.",
       "container": "mkv",
@@ -273,6 +285,7 @@
     },
     {
       "name": "h264_mp4_30fps",
+      "uuid": "d4370844-4e5a-570b-9422-ac7aac43ad6d",
       "title": "H.264 MP4 30 fps (NTSC-style)",
       "description": "H.264 high profile 30 fps in MP4 with AAC. Covers the 30/29.97 FPS branch.",
       "container": "mp4",
@@ -293,6 +306,7 @@
     },
     {
       "name": "h264_mp4_60fps",
+      "uuid": "c05e6e1c-e4a0-538b-8857-26c7c98c344c",
       "title": "H.264 MP4 60 fps (high frame rate)",
       "description": "H.264 high profile 60 fps in MP4 with AAC. Covers HFR branch.",
       "container": "mp4",
@@ -313,6 +327,7 @@
     },
     {
       "name": "h264_mp4_4_3_sd",
+      "uuid": "75a93379-52e0-5975-8c90-584bc45e6056",
       "title": "H.264 MP4 4:3 SD",
       "description": "H.264 main profile 4:3 aspect at SD resolution in MP4. Covers legacy aspect branch.",
       "container": "mp4",
@@ -334,6 +349,7 @@
     },
     {
       "name": "h264_mp4_9_16_vertical",
+      "uuid": "2e0c5b19-d9fb-5f93-9f17-5a6911d60bdf",
       "title": "H.264 MP4 9:16 Vertical (mobile)",
       "description": "H.264 high profile 9:16 vertical aspect in MP4 with AAC. Covers mobile/vertical branch.",
       "container": "mp4",
@@ -355,6 +371,7 @@
     },
     {
       "name": "mpeg2_ts_1080i_broadcast",
+      "uuid": "2af1250d-2716-55ca-a31e-bff340f68c5c",
       "title": "MPEG-2 TS 1080i Broadcast",
       "description": "MPEG-2 Video Main@High interlaced (1080i 29.97) in MPEG-TS with MP2 stereo audio. DVB-T / ATSC broadcast profile.",
       "container": "ts",
@@ -378,6 +395,7 @@
     },
     {
       "name": "mpeg2_ts_480i_ntsc",
+      "uuid": "d27d7f77-dfe7-5ed7-9369-2454837ac485",
       "title": "MPEG-2 TS 480i NTSC",
       "description": "480i 29.97 interlaced NTSC in MPEG-TS. Declared SAR is 8:9 because MPEG-2 cannot carry an arbitrary pixel aspect: the bitstream only encodes a small table of display aspects, so a requested 10:11 is snapped to the nearest legal value, giving a 4:3 display.",
       "container": "ts",
@@ -401,6 +419,7 @@
     },
     {
       "name": "mpeg4_avi_mp3_xvid",
+      "uuid": "0f1ad464-98aa-5c97-bddb-7b1094956dfe",
       "title": "MPEG-4 Part 2 (Xvid-tagged) AVI with MP3",
       "description": "MPEG-4 Part 2 ASP in AVI tagged XVID (so legacy DivX/Xvid players recognize it) with MP3 stereo.",
       "container": "avi",
@@ -421,6 +440,7 @@
     },
     {
       "name": "wmv_asf_wmav2",
+      "uuid": "cf48c7ce-ef75-5e13-b36f-362302949f08",
       "title": "WMV2 ASF with WMA2",
       "description": "Windows Media Video 8 (WMV2) + Windows Media Audio 2 (WMA2) in ASF/WMV container.",
       "container": "wmv",
@@ -440,6 +460,7 @@
     },
     {
       "name": "h264_mp4_pal_anamorphic",
+      "uuid": "a8fb4d43-3e69-5da0-b439-1ae4440d01be",
       "title": "H.264 MP4 PAL Anamorphic Widescreen",
       "description": "H.264 high 720x576 PAL with SAR 64:45 (non-square pixels) so DAR resolves to exactly 16:9. Exercises anamorphic display-aspect handling.",
       "container": "mp4",
@@ -463,6 +484,7 @@
     },
     {
       "name": "hevc_mp4_10bit_bt709_sdr",
+      "uuid": "bbbe0afc-6e65-54c6-adf2-1feb682a69fe",
       "title": "HEVC MP4 10-bit BT.709 SDR (studio intermediate)",
       "description": "HEVC main10 10-bit SDR in BT.709. Studio/intermediate content where 10-bit is for banding headroom, not HDR.",
       "container": "mp4",
@@ -490,6 +512,7 @@
     },
     {
       "name": "chapters_mp4_10",
+      "uuid": "a7ceda3c-6991-5190-a9a4-51866bbf9113",
       "title": "Chapters: 10 Evenly Spaced (MP4)",
       "description": "H.264 MP4 carrying ten evenly spaced chapters with sequential titles. Baseline chapter-marker rendering.",
       "container": "mp4",
@@ -517,6 +540,7 @@
     },
     {
       "name": "chapters_mkv_10",
+      "uuid": "2fb8cdfe-3eec-5d4d-9b0c-4d78cc2e84d8",
       "title": "Chapters: 10 Evenly Spaced (Matroska)",
       "description": "Same ten chapters in Matroska, which stores chapters in its own structure rather than an MP4 chapter track.",
       "container": "mkv",
@@ -544,6 +568,7 @@
     },
     {
       "name": "chapters_mkv_unicode",
+      "uuid": "59b33550-b190-5dde-9e3b-cb11b5663a9b",
       "title": "Chapters: Unicode Titles",
       "description": "Chapter titles using non-ASCII, accented, right-to-left and emoji characters. Exercises UTF-8 round-trip and client font fallback.",
       "container": "mkv",
@@ -578,6 +603,7 @@
     },
     {
       "name": "chapters_mkv_100",
+      "uuid": "95de7606-214d-522a-a17b-7f3fb061f668",
       "title": "Chapters: 100 Chapter Stress",
       "description": "One hundred chapters in a single file. Exercises chapter-list UI, scrubber marker density and seek-menu paging.",
       "container": "mkv",
@@ -605,6 +631,7 @@
     },
     {
       "name": "aspect_scope_239",
+      "uuid": "57b6f4a7-fef6-5f37-a86b-a0b4847fb989",
       "title": "Aspect: 2.39:1 Scope",
       "description": "Anamorphic-scope theatrical ratio with square pixels. The most common modern cinema shape and the widest the library carries.",
       "container": "mp4",
@@ -627,6 +654,7 @@
     },
     {
       "name": "aspect_flat_185",
+      "uuid": "e6f3d763-750d-5087-881c-c2a790927a58",
       "title": "Aspect: 1.85:1 Flat",
       "description": "Theatrical flat ratio, slightly wider than 16:9. Exercises near-miss letterboxing on a 16:9 display.",
       "container": "mp4",
@@ -649,6 +677,7 @@
     },
     {
       "name": "aspect_univisium_200",
+      "uuid": "12e7d1fb-2dfd-5300-b718-636142716f77",
       "title": "Aspect: 2.00:1 Univisium",
       "description": "Two-to-one ratio used widely by streaming originals. Sits between 16:9 and scope.",
       "container": "mp4",
@@ -671,6 +700,7 @@
     },
     {
       "name": "aspect_square_1_1",
+      "uuid": "e70e292b-206b-53a1-a9d9-ece3ba57e6fd",
       "title": "Aspect: 1:1 Square",
       "description": "Square frame from social-video workflows. Neither landscape nor portrait logic applies.",
       "container": "mp4",
@@ -693,6 +723,7 @@
     },
     {
       "name": "aspect_vertical_9_16",
+      "uuid": "9d6f0f56-9ff3-5f4e-ac2d-3d5fcc187e74",
       "title": "Aspect: 9:16 True Vertical",
       "description": "Portrait video with square pixels, as produced by phone capture. Distinct from a rotated landscape frame.",
       "container": "mp4",
@@ -715,6 +746,7 @@
     },
     {
       "name": "aspect_letterbox_239",
+      "uuid": "545b6e37-88cf-5918-b1c4-66531eb34cf5",
       "title": "Aspect: 2.39 Letterboxed In 16:9",
       "description": "A 2.39 picture padded into a 16:9 coded frame, so the black bars are baked into the pixels. The container reports 16:9 and only the picture is scope — bait for auto-crop logic.",
       "container": "mp4",
@@ -741,6 +773,7 @@
     },
     {
       "name": "aspect_pillarbox_43",
+      "uuid": "7121a997-42cd-5918-a3ba-0503355d3d89",
       "title": "Aspect: 4:3 Pillarboxed In 16:9",
       "description": "A 4:3 picture padded into a 16:9 coded frame with baked side bars. The inverse of the letterbox case.",
       "container": "mp4",
@@ -767,6 +800,7 @@
     },
     {
       "name": "aspect_anamorphic_hdv",
+      "uuid": "e173b8e9-d63d-54c0-8b8b-7e6bfbec3a43",
       "title": "Aspect: HDV 1440x1080 Anamorphic",
       "description": "HDV acquisition format: 1440x1080 coded with SAR 4:3 for a 16:9 display. Non-square pixels on an HD frame.",
       "container": "mp4",
@@ -790,6 +824,7 @@
     },
     {
       "name": "aspect_anamorphic_dvcpro",
+      "uuid": "6fe79df5-6dca-5913-8e46-114a5380a471",
       "title": "Aspect: DVCPRO HD 1280x1080 Anamorphic",
       "description": "DVCPRO HD: 1280x1080 coded with SAR 3:2 for 16:9 display.",
       "container": "mp4",
@@ -813,6 +848,7 @@
     },
     {
       "name": "aspect_anamorphic_ntsc_wide",
+      "uuid": "9bffc4fd-1c9d-5c0c-831f-f034efb9eb57",
       "title": "Aspect: NTSC Widescreen Anamorphic",
       "description": "480-line NTSC coded 720x480 with the BT.601 sample aspect of 40:33. Across the full 720-wide frame that yields a 20:11 display aspect rather than exactly 16:9, because the 16:9 figure assumes the 704-pixel active area.",
       "container": "mp4",
@@ -836,6 +872,7 @@
     },
     {
       "name": "h264_mp4_23976",
+      "uuid": "680bb275-b16d-51da-a00e-936e4807101e",
       "title": "H.264 23.976 fps Film Cadence",
       "description": "The standard film frame rate. Its absence made every existing variant an integer rate, hiding NTSC pulldown and rounding bugs.",
       "container": "mp4",
@@ -857,6 +894,7 @@
     },
     {
       "name": "h264_mp4_48fps",
+      "uuid": "e446545a-ebc2-5ce3-9456-6a3ef31da138",
       "title": "H.264 48 fps High Frame Rate",
       "description": "Double-rate cinema capture.",
       "container": "mp4",
@@ -878,6 +916,7 @@
     },
     {
       "name": "h264_mp4_50fps",
+      "uuid": "2979b8da-d331-50cd-b868-841a96fdd7dc",
       "title": "H.264 50 fps PAL High Frame Rate",
       "description": "PAL-region high frame rate broadcast.",
       "container": "mp4",
@@ -899,6 +938,7 @@
     },
     {
       "name": "mpeg2_ts_telecine",
+      "uuid": "7409d00e-0197-56f1-b3f7-c5ec6cf87263",
       "title": "MPEG-2 3:2 Pulldown Telecine",
       "description": "23.976 progressive film carried as 29.97 interlaced via 3:2 pulldown. Requires inverse telecine to recover the original cadence.",
       "container": "ts",
@@ -919,6 +959,7 @@
     },
     {
       "name": "h264_mkv_422_10bit",
+      "uuid": "c6bb1028-d325-5cd1-9153-aa2087f4ba31",
       "title": "H.264 4:2:2 10-bit",
       "description": "Broadcast/mezzanine chroma subsampling at 10-bit. The library was otherwise entirely 4:2:0.",
       "container": "mkv",
@@ -939,6 +980,7 @@
     },
     {
       "name": "h264_mkv_444_8bit",
+      "uuid": "b0b561ee-2135-5227-bbe3-86084bef7b02",
       "title": "H.264 4:4:4 8-bit",
       "description": "Full chroma resolution — screen capture and mastering workflows.",
       "container": "mkv",
@@ -959,6 +1001,7 @@
     },
     {
       "name": "hevc_mkv_420_12bit",
+      "uuid": "2315e748-6a2d-5a24-9e13-778c5f292580",
       "title": "HEVC 12-bit",
       "description": "Twelve-bit HEVC (Range Extensions profile). Deeper than the existing 10-bit entries.",
       "container": "mkv",
@@ -978,6 +1021,7 @@
     },
     {
       "name": "h264_mp4_full_range",
+      "uuid": "0cd8eb8b-ae01-5cd0-a386-fecdd2ef0cd7",
       "title": "H.264 Full-Range (PC) Levels",
       "description": "Full-range luma rather than the usual limited/TV range. Mishandling shows as crushed blacks or clipped highlights. ffmpeg represents full range as the yuvj420p pixel format.",
       "container": "mp4",
@@ -999,6 +1043,7 @@
     },
     {
       "name": "h264_mp4_bt601",
+      "uuid": "156365c1-7a0d-5116-b1ee-227c295371e5",
       "title": "H.264 BT.601 Colour Matrix",
       "description": "Standard-definition colour matrix on an HD frame. Wrong-matrix conversion shows as a colour shift.",
       "container": "mp4",
@@ -1020,6 +1065,7 @@
     },
     {
       "name": "h264_mov_aac",
+      "uuid": "f9e57271-6e50-5515-bed5-3a9382ce3fca",
       "title": "H.264 in QuickTime MOV",
       "description": "QuickTime container — common from Apple capture and editing tools.",
       "container": "mov",
@@ -1040,6 +1086,7 @@
     },
     {
       "name": "h263_3gp_aac",
+      "uuid": "d6e66620-ce91-5595-86d1-3cbe18d39024",
       "title": "H.263 in 3GP",
       "description": "Legacy mobile format: H.263 at CIF in a 3GP container.",
       "container": "3gp",
@@ -1060,6 +1107,7 @@
     },
     {
       "name": "dnxhd_mxf_pcm",
+      "uuid": "e00d0736-e07d-5e75-abc6-bb5f47d9f20c",
       "title": "DNxHD in MXF",
       "description": "Broadcast mezzanine: DNxHD 120 in MXF with PCM audio.",
       "container": "mxf",
@@ -1077,11 +1125,276 @@
         "channels": 2,
         "sample_rate": 48000
       }
+    },
+    {
+      "name": "chapters_tv_episode",
+      "uuid": "fd359ebb-c27a-59dc-abc8-0292ee807952",
+      "title": "Chapters: TV Episode Structure",
+      "description": "A broadcast episode shape: cold open, title sequence, three acts, end credits. At the 300 s default the title sequence runs 24 s to 54 s and the credits start at 270 s, so a skip-intro or skip-credits control has realistic offsets to act on.",
+      "container": "mkv",
+      "video": {
+        "codec": "libx264",
+        "profile": "high",
+        "level": "4.0",
+        "pix_fmt": "yuv420p",
+        "bitrate": "3000k",
+        "preset": "medium"
+      },
+      "audio": {
+        "codec": "aac",
+        "bitrate": "192k",
+        "channels": 2,
+        "sample_rate": 48000
+      },
+      "chapters": {
+        "mode": "explicit",
+        "unit": "fraction",
+        "entries": [
+          {
+            "start": 0.0,
+            "end": 0.08,
+            "title": "Cold Open"
+          },
+          {
+            "start": 0.08,
+            "end": 0.18,
+            "title": "Intro"
+          },
+          {
+            "start": 0.18,
+            "end": 0.45,
+            "title": "Act One"
+          },
+          {
+            "start": 0.45,
+            "end": 0.75,
+            "title": "Act Two"
+          },
+          {
+            "start": 0.75,
+            "end": 0.9,
+            "title": "Act Three"
+          },
+          {
+            "start": 0.9,
+            "end": 1.0,
+            "title": "Credits"
+          }
+        ]
+      },
+      "flags": [
+        "chapters",
+        "chapter_structure",
+        "intro",
+        "credits"
+      ]
+    },
+    {
+      "name": "chapters_tv_intro_at_zero",
+      "uuid": "98a793b8-985d-5f0a-a171-94d613019fe5",
+      "title": "Chapters: Intro At Zero",
+      "description": "The title sequence starts at 00:00 with no cold open, which is the common case for many series. Tests a skip control that must appear immediately on playback start rather than part way in.",
+      "container": "mkv",
+      "video": {
+        "codec": "libx264",
+        "profile": "high",
+        "level": "4.0",
+        "pix_fmt": "yuv420p",
+        "bitrate": "3000k",
+        "preset": "medium"
+      },
+      "audio": {
+        "codec": "aac",
+        "bitrate": "192k",
+        "channels": 2,
+        "sample_rate": 48000
+      },
+      "chapters": {
+        "mode": "explicit",
+        "unit": "fraction",
+        "entries": [
+          {
+            "start": 0.0,
+            "end": 0.1,
+            "title": "Intro"
+          },
+          {
+            "start": 0.1,
+            "end": 0.5,
+            "title": "Act One"
+          },
+          {
+            "start": 0.5,
+            "end": 0.88,
+            "title": "Act Two"
+          },
+          {
+            "start": 0.88,
+            "end": 1.0,
+            "title": "Credits"
+          }
+        ]
+      },
+      "flags": [
+        "chapters",
+        "chapter_structure",
+        "intro",
+        "credits",
+        "intro_at_zero"
+      ]
+    },
+    {
+      "name": "chapters_movie_feature",
+      "uuid": "02427390-b8f3-59ee-b270-077883446e1a",
+      "title": "Chapters: Feature Film Structure",
+      "description": "A feature shape: opening titles, three acts and a long end-credit roll. The credits take the final 12 percent, which is proportionally closer to a film than an episode.",
+      "container": "mp4",
+      "video": {
+        "codec": "libx264",
+        "profile": "high",
+        "level": "4.0",
+        "pix_fmt": "yuv420p",
+        "bitrate": "3000k",
+        "preset": "medium"
+      },
+      "audio": {
+        "codec": "aac",
+        "bitrate": "192k",
+        "channels": 2,
+        "sample_rate": 48000
+      },
+      "chapters": {
+        "mode": "explicit",
+        "unit": "fraction",
+        "entries": [
+          {
+            "start": 0.0,
+            "end": 0.06,
+            "title": "Opening Titles"
+          },
+          {
+            "start": 0.06,
+            "end": 0.35,
+            "title": "Act One"
+          },
+          {
+            "start": 0.35,
+            "end": 0.68,
+            "title": "Act Two"
+          },
+          {
+            "start": 0.68,
+            "end": 0.88,
+            "title": "Act Three"
+          },
+          {
+            "start": 0.88,
+            "end": 1.0,
+            "title": "End Credits"
+          }
+        ]
+      },
+      "flags": [
+        "chapters",
+        "chapter_structure",
+        "intro",
+        "credits"
+      ]
+    },
+    {
+      "name": "chapters_post_credits",
+      "uuid": "e2bfbcf9-77a3-598e-9f02-41f5c2801028",
+      "title": "Chapters: Post-Credits Scene",
+      "description": "Credits followed by a final scene. A player that treats the credit chapter as the end of the programme will skip past content that still has to play.",
+      "container": "mp4",
+      "video": {
+        "codec": "libx264",
+        "profile": "high",
+        "level": "4.0",
+        "pix_fmt": "yuv420p",
+        "bitrate": "3000k",
+        "preset": "medium"
+      },
+      "audio": {
+        "codec": "aac",
+        "bitrate": "192k",
+        "channels": 2,
+        "sample_rate": 48000
+      },
+      "chapters": {
+        "mode": "explicit",
+        "unit": "fraction",
+        "entries": [
+          {
+            "start": 0.0,
+            "end": 0.05,
+            "title": "Opening Titles"
+          },
+          {
+            "start": 0.05,
+            "end": 0.8,
+            "title": "Main Feature"
+          },
+          {
+            "start": 0.8,
+            "end": 0.94,
+            "title": "End Credits"
+          },
+          {
+            "start": 0.94,
+            "end": 1.0,
+            "title": "Post-Credits Scene"
+          }
+        ]
+      },
+      "flags": [
+        "chapters",
+        "chapter_structure",
+        "credits",
+        "post_credits"
+      ]
+    },
+    {
+      "name": "chapters_single",
+      "uuid": "897a7fc2-0957-5889-a2d7-db17d784e939",
+      "title": "Chapters: Single Chapter",
+      "description": "One chapter spanning the whole file. Tests the boundary where chapter navigation is present but offers nowhere to jump to.",
+      "container": "mp4",
+      "video": {
+        "codec": "libx264",
+        "profile": "high",
+        "level": "4.0",
+        "pix_fmt": "yuv420p",
+        "bitrate": "3000k",
+        "preset": "medium"
+      },
+      "audio": {
+        "codec": "aac",
+        "bitrate": "192k",
+        "channels": 2,
+        "sample_rate": 48000
+      },
+      "chapters": {
+        "mode": "explicit",
+        "unit": "fraction",
+        "entries": [
+          {
+            "start": 0.0,
+            "end": 1.0,
+            "title": "Feature"
+          }
+        ]
+      },
+      "flags": [
+        "chapters",
+        "chapter_structure"
+      ]
     }
   ],
   "audio_only_variants": [
     {
       "name": "audio_aac_stereo",
+      "uuid": "1b546481-8eda-5e48-b56c-14609f9bf4e6",
       "title": "AAC Stereo Audio Only",
       "description": "AAC-LC stereo in M4A container.",
       "container": "m4a",
@@ -1094,6 +1407,7 @@
     },
     {
       "name": "audio_ac3_51",
+      "uuid": "90e1c409-bd0d-5377-bf30-660b6eda1f4a",
       "title": "AC-3 5.1 Audio Only",
       "description": "AC-3 5.1 surround, raw AC-3 stream.",
       "container": "ac3",
@@ -1106,6 +1420,7 @@
     },
     {
       "name": "audio_eac3_51",
+      "uuid": "4e22ffd2-b7c5-5b7c-982a-f5e044795b37",
       "title": "E-AC-3 5.1 Audio Only",
       "description": "Enhanced AC-3 5.1 surround, raw E-AC-3 stream.",
       "container": "eac3",
@@ -1118,6 +1433,7 @@
     },
     {
       "name": "audio_opus_stereo",
+      "uuid": "4e07c01f-d35f-59a6-9a73-b1f4c6029032",
       "title": "Opus Stereo Audio Only",
       "description": "Opus stereo in Ogg container.",
       "container": "ogg",
@@ -1130,6 +1446,7 @@
     },
     {
       "name": "audio_mp3_stereo",
+      "uuid": "37c34414-d5bf-5ce5-8f3f-c8430885ebc4",
       "title": "MP3 Stereo Audio Only",
       "description": "MP3 stereo CBR 192 kbps.",
       "container": "mp3",
@@ -1142,6 +1459,7 @@
     },
     {
       "name": "audio_flac_stereo",
+      "uuid": "28d4c63b-5a30-58b6-a3d0-8c79d9f84c63",
       "title": "FLAC Stereo Audio Only",
       "description": "FLAC lossless stereo.",
       "container": "flac",
@@ -1153,6 +1471,7 @@
     },
     {
       "name": "audio_pcm_wav",
+      "uuid": "3245318d-7a33-5edb-8d2b-5eda451f6460",
       "title": "PCM WAV Stereo Audio Only",
       "description": "PCM 16-bit LE stereo in WAV.",
       "container": "wav",
@@ -1164,6 +1483,7 @@
     },
     {
       "name": "audio_aac_mono",
+      "uuid": "7df1a463-c1cb-5374-8210-65d879342cc9",
       "title": "AAC Mono Audio Only",
       "description": "AAC-LC mono in M4A. Exercises mono-track ingest / UI branch.",
       "container": "m4a",
@@ -1176,6 +1496,7 @@
     },
     {
       "name": "audio_aac_71",
+      "uuid": "5c0c7d4b-7372-5db4-9eec-fa68f77dc742",
       "title": "AAC 7.1 Audio Only",
       "description": "AAC-LC 7.1 surround in M4A.",
       "container": "m4a",
@@ -1188,6 +1509,7 @@
     },
     {
       "name": "audio_pcm_714_bed",
+      "uuid": "f1c321b3-bac8-5db3-a64c-9d9229c50809",
       "title": "PCM 7.1.4 Bed (12-channel)",
       "description": "PCM 16-bit LE 7.1.4 bed (12 channels) in WAV. Covers discrete-channel object-audio bed layouts without needing proprietary Atmos metadata.",
       "container": "wav",
@@ -1199,6 +1521,7 @@
     },
     {
       "name": "audio_pcm_914_bed",
+      "uuid": "14f29c57-35d1-5e56-a3ec-4d20c1a21328",
       "title": "PCM 9.1.4 Bed (14-channel Atmos-style bed)",
       "description": "PCM 16-bit LE 9.1.4 bed (14 channels) in WAV. Representative of a Dolby Atmos 9.1.4 channel-based bed — objects + metadata are proprietary, but the bed itself is just multichannel PCM.",
       "container": "wav",
@@ -1210,6 +1533,7 @@
     },
     {
       "name": "audio_pcm_24bit_48k",
+      "uuid": "c341fb19-5be6-55d4-b6cb-d1717b37e438",
       "title": "PCM 24-bit 48 kHz Stereo",
       "description": "PCM s24le stereo at 48 kHz in WAV. 24-bit sample depth.",
       "container": "wav",
@@ -1221,6 +1545,7 @@
     },
     {
       "name": "audio_flac_24bit_96k",
+      "uuid": "5ef81637-a06e-5625-a14a-468350145277",
       "title": "FLAC 24-bit 96 kHz Stereo (hi-res)",
       "description": "FLAC lossless stereo at 96 kHz 24-bit. Hi-res audio branch.",
       "container": "flac",
@@ -1233,6 +1558,7 @@
     },
     {
       "name": "audio_flac_24bit_192k",
+      "uuid": "4ee8dfc9-be59-5a14-a09a-4e36b04139e1",
       "title": "FLAC 24-bit 192 kHz Stereo (studio)",
       "description": "FLAC lossless stereo at 192 kHz 24-bit. Studio-master audio branch.",
       "container": "flac",
@@ -1245,6 +1571,7 @@
     },
     {
       "name": "audio_dts_51",
+      "uuid": "3cac8cb4-7653-5df6-9b35-786c3a250f0e",
       "title": "DTS 5.1 Core",
       "description": "Core DTS 5.1 surround. ffmpeg can synthesize the core codec; only the lossless DTS-HD MA extension needs a licensed sample.",
       "container": "mkv",
@@ -1258,6 +1585,7 @@
     },
     {
       "name": "audio_truehd_51",
+      "uuid": "ad7a9b8f-92b3-5b28-a66a-4d5b71ad9da1",
       "title": "Dolby TrueHD 5.1 Core",
       "description": "Core TrueHD 5.1. Atmos object metadata still requires a licensed sample.",
       "container": "mkv",
@@ -1271,6 +1599,7 @@
     },
     {
       "name": "audio_alac_stereo",
+      "uuid": "05b23e87-403d-5abe-aa51-b0f6f0f5a2dc",
       "title": "ALAC Lossless Stereo",
       "description": "Apple Lossless in M4A — the Apple-ecosystem counterpart to FLAC.",
       "container": "m4a",
@@ -1283,6 +1612,7 @@
     },
     {
       "name": "audio_vorbis_stereo",
+      "uuid": "73c02d3e-30a8-5a7c-afb7-a5f2ca0efd0c",
       "title": "Vorbis Stereo",
       "description": "Vorbis in Ogg. Predates Opus and still appears in older libraries.",
       "container": "ogg",
@@ -1298,6 +1628,7 @@
   "subtitle_variants": [
     {
       "name": "sub_external_srt_eng",
+      "uuid": "fb42447b-c0bc-5aac-bd15-b84273ab4933",
       "title": "External SRT (English)",
       "description": "Sidecar SRT subtitle file in English.",
       "format": "srt",
@@ -1306,6 +1637,7 @@
     },
     {
       "name": "sub_external_webvtt_eng",
+      "uuid": "cee60cf9-0c41-5409-93c4-535922414e1e",
       "title": "External WebVTT (English)",
       "description": "Sidecar WebVTT subtitle file in English.",
       "format": "webvtt",
@@ -1314,6 +1646,7 @@
     },
     {
       "name": "sub_external_ass_eng",
+      "uuid": "59d2c6a7-d133-5cda-b8f3-67dfe4253854",
       "title": "External ASS (English)",
       "description": "Sidecar ASS subtitle file in English.",
       "format": "ass",
@@ -1322,6 +1655,7 @@
     },
     {
       "name": "h264_mkv_srt_embedded",
+      "uuid": "aeaa7942-caa1-5aa9-8c59-8ea0e19f2ad2",
       "title": "H.264 MKV with embedded SRT",
       "description": "H.264 in Matroska with embedded SRT subtitle track.",
       "format": "srt",
@@ -1344,6 +1678,7 @@
     },
     {
       "name": "h264_mkv_ass_embedded",
+      "uuid": "c67a9751-b67a-584c-baed-4758102b45d3",
       "title": "H.264 MKV with embedded ASS",
       "description": "H.264 in Matroska with embedded ASS subtitle track.",
       "format": "ass",
@@ -1366,6 +1701,7 @@
     },
     {
       "name": "h264_mp4_mov_text",
+      "uuid": "181ad919-120c-5852-8ac8-ae403adae26e",
       "title": "H.264 MP4 with mov_text (3GPP Timed Text)",
       "description": "H.264 in MP4 with mov_text embedded subtitle track.",
       "format": "mov_text",
@@ -1390,6 +1726,7 @@
   "stream_variants": [
     {
       "name": "hls_h264_aac",
+      "uuid": "94e995eb-2b1f-5593-adba-04e3e776c8ea",
       "title": "HLS H.264 AAC",
       "description": "HLS VOD with H.264 + AAC, 4 second segments.",
       "type": "hls",
@@ -1410,6 +1747,7 @@
     },
     {
       "name": "dash_h264_aac",
+      "uuid": "caf7756b-1029-5340-aef3-09f1affb96f7",
       "title": "DASH H.264 AAC",
       "description": "DASH VOD with H.264 + AAC, 4 second segments.",
       "type": "dash",
@@ -1432,6 +1770,7 @@
   "edge_cases": [
     {
       "name": "edge_no_audio",
+      "uuid": "924ca5f3-124c-5bb2-a243-8a62ced8e7a1",
       "title": "Edge: No Audio Track",
       "description": "H.264 MP4 with no audio stream.",
       "container": "mp4",
@@ -1448,6 +1787,7 @@
     },
     {
       "name": "edge_audio_only",
+      "uuid": "2ddc2df6-4adf-542a-a823-febd520e47ec",
       "title": "Edge: Audio-Only File",
       "description": "Audio-only AAC in M4A container.",
       "container": "m4a",
@@ -1463,6 +1803,7 @@
     },
     {
       "name": "edge_multi_audio_tracks",
+      "uuid": "2f45b8c7-8ce3-5bc2-89df-56b34fd98c96",
       "title": "Edge: Multiple Audio Tracks",
       "description": "H.264 MKV with English AAC stereo and Spanish AC-3 5.1.",
       "container": "mkv",
@@ -1499,6 +1840,7 @@
     },
     {
       "name": "edge_multi_subtitle_tracks",
+      "uuid": "add58327-13b4-5933-9caf-19beeafa3839",
       "title": "Edge: Multiple Subtitle Tracks",
       "description": "H.264 MKV with three subtitle tracks: English default, Spanish forced, Japanese.",
       "container": "mkv",
@@ -1545,6 +1887,7 @@
     },
     {
       "name": "edge_variable_fps",
+      "uuid": "f808cc2a-df05-598a-9b82-64b6ecef7719",
       "title": "Edge: Variable Frame Rate",
       "description": "H.264 MKV with variable frame rate (VFR) timing.",
       "container": "mkv",
@@ -1567,6 +1910,7 @@
     },
     {
       "name": "edge_broken_pts",
+      "uuid": "1dc52cff-15ba-5ee9-a463-51ddae9ce5ba",
       "title": "Edge: Broken Timestamps",
       "description": "H.264 TS with deliberately discontinuous PTS values.",
       "container": "ts",
@@ -1589,6 +1933,7 @@
     },
     {
       "name": "edge_low_bitrate",
+      "uuid": "94772aa8-cada-5586-b77c-50e36feb7191",
       "title": "Edge: Very Low Bitrate",
       "description": "H.264 MP4 encoded at an aggressive low bitrate (150 kbps video).",
       "container": "mp4",
@@ -1611,6 +1956,7 @@
     },
     {
       "name": "edge_high_bitrate_stress",
+      "uuid": "9eb7691c-bda2-5799-b71d-d67833cf7795",
       "title": "Edge: High Bitrate Stress",
       "description": "H.264 MKV at 80 Mbps video + 640 kbps AC-3 5.1.",
       "container": "mkv",
@@ -1633,6 +1979,7 @@
     },
     {
       "name": "edge_annexb_stream",
+      "uuid": "7d9a09e2-17d3-53a7-9a18-9c9a3923a635",
       "title": "Edge: H.264 Annex B Bitstream",
       "description": "H.264 Annex B byte-stream format in MPEG-TS.",
       "container": "ts",
@@ -1655,6 +2002,7 @@
     },
     {
       "name": "edge_avcc_stream",
+      "uuid": "ace632df-17e6-562f-b7aa-e59e3a11e7dc",
       "title": "Edge: H.264 AVCC Bitstream",
       "description": "H.264 AVCC (length-prefixed NALU) bitstream in MP4.",
       "container": "mp4",
@@ -1677,6 +2025,7 @@
     },
     {
       "name": "edge_fragmented_mp4",
+      "uuid": "2fa8845d-1a8f-5ce1-b30d-078604cd6c9b",
       "title": "Edge: Fragmented MP4",
       "description": "H.264 fragmented MP4 (fMP4) with empty moov and MOOF-based fragments.",
       "container": "mp4",
@@ -1699,6 +2048,7 @@
     },
     {
       "name": "edge_missing_metadata",
+      "uuid": "b4c99f9b-976d-5a52-acf1-2a8dafd10c89",
       "title": "Edge: Missing Metadata",
       "description": "H.264 MP4 with container and stream metadata stripped.",
       "container": "mp4",
@@ -1721,6 +2071,7 @@
     },
     {
       "name": "edge_edit_list",
+      "uuid": "0eac66ba-22ec-552b-99f7-ac0483882095",
       "title": "Edge: MP4 with Edit List (non-zero start_time)",
       "description": "H.264 MP4 with a 500 ms input time offset, which the MP4 muxer emits as an edts/elst edit-list entry. Covers players that ignore edit lists.",
       "container": "mp4",
@@ -1745,6 +2096,7 @@
     },
     {
       "name": "edge_truncated",
+      "uuid": "efc940b5-b014-53bc-99ef-e2ea1c2b612c",
       "title": "Edge: Truncated File",
       "description": "H.264 MP4 truncated to 50% of its byte length after encoding. Simulates partial download / corrupt tail.",
       "container": "mp4",
@@ -1769,6 +2121,7 @@
     },
     {
       "name": "edge_chapters_nonzero_start",
+      "uuid": "8b40c9a2-999f-558b-b345-351126e86f74",
       "title": "Edge: First Chapter Starts Late",
       "description": "Chapters begin 10% into the file, leaving an unchaptered head. Clients that assume chapter one starts at zero mis-map the timeline.",
       "container": "mkv",
@@ -1813,6 +2166,7 @@
     },
     {
       "name": "edge_chapters_overlap",
+      "uuid": "8fe4831d-44f1-5529-a293-e6cd19a4b746",
       "title": "Edge: Overlapping Chapters",
       "description": "Chapter ranges overlap each other. A player must pick one chapter per instant without flickering between markers.",
       "container": "mkv",
@@ -1857,6 +2211,7 @@
     },
     {
       "name": "edge_chapters_zero_length",
+      "uuid": "98d01157-f3ad-55c7-a3ff-524888f15215",
       "title": "Edge: Zero-Length Chapter",
       "description": "Contains a chapter whose start equals its end. Zero-duration markers can divide-by-zero a progress calculation.",
       "container": "mkv",
@@ -1901,6 +2256,7 @@
     },
     {
       "name": "edge_chapters_past_eof",
+      "uuid": "f6345921-b83f-58fc-94f2-370c1f7255dc",
       "title": "Edge: Chapter Past End Of File",
       "description": "The final chapter ends beyond the file duration. Seeking to it must clamp rather than hang or error.",
       "container": "mkv",
@@ -1940,6 +2296,7 @@
     },
     {
       "name": "edge_chapters_out_of_order",
+      "uuid": "885ee9db-ec9c-5750-9857-64ceac3e3cff",
       "title": "Edge: Out-Of-Order Chapters",
       "description": "Chapters are declared with descending start times. Clients that trust declaration order build a reversed menu.",
       "container": "mkv",
@@ -1984,6 +2341,7 @@
     },
     {
       "name": "edge_chapters_stripped",
+      "uuid": "23a209b1-f06a-56e2-a5cf-90e1d90ed7a1",
       "title": "Edge: Chapters Authored Then Stripped",
       "description": "Chapters are authored and then removed at mux time. The file must report zero chapters, proving the strip path works.",
       "container": "mp4",
@@ -2013,6 +2371,7 @@
     },
     {
       "name": "edge_rotate_90",
+      "uuid": "21d9aa18-c49b-5a1b-bef5-9fd813e23614",
       "title": "Edge: Rotation Metadata 90",
       "description": "Landscape frame carrying a 90 degree display matrix, as phones record portrait video. A client that ignores the matrix shows it sideways.",
       "container": "mp4",
@@ -2037,6 +2396,7 @@
     },
     {
       "name": "edge_rotate_180",
+      "uuid": "f1bbe552-a69b-58a2-8aeb-d33aa8e690ac",
       "title": "Edge: Rotation Metadata 180",
       "description": "Display matrix of 180 degrees — upside-down unless the client honours it.",
       "container": "mp4",
@@ -2061,6 +2421,7 @@
     },
     {
       "name": "edge_rotate_270",
+      "uuid": "f4944f39-1f8d-5c18-a7de-ff514bdfce49",
       "title": "Edge: Rotation Metadata 270",
       "description": "Display matrix of 270 degrees, the opposite handedness to the 90 case.",
       "container": "mp4",
@@ -2085,6 +2446,7 @@
     },
     {
       "name": "edge_aspect_conflict",
+      "uuid": "68cf2a87-4013-539e-a764-59a7e3c00ada",
       "title": "Edge: Container Aspect Conflicts With Coded Size",
       "description": "Coded 1280x720 but the container declares a 4:3 display aspect. Tests whether the player trusts container metadata or the coded dimensions.",
       "container": "mp4",
@@ -2109,6 +2471,7 @@
     },
     {
       "name": "edge_av_desync_500ms",
+      "uuid": "1fc5c74b-d85d-51cc-be83-922a0667f2d5",
       "title": "Edge: Audio Delayed 500 ms",
       "description": "Audio deliberately offset half a second from video. Nothing else in the library tests A/V sync handling.",
       "container": "mkv",
@@ -2135,9 +2498,10 @@
   "external_variants": [
     {
       "name": "external_dolby_vision_p5",
+      "uuid": "f0788098-dbed-57b7-968d-bfca97f05bbd",
       "title": "Dolby Vision Profile 5 (IPT-PQ-C2, single layer)",
       "description": "HEVC Main10 with Dolby Vision RPU NALs, Profile 5 (single-layer, IPT-PQ-C2). Not backward compatible with HDR10 or SDR. Requires externally-supplied sample.",
-      "source_path": "sources/external/dolby_vision_p5.mp4",
+      "source_path": "sources/masters/sollevante_dv_p5_2160p24.mp4",
       "container": "mp4",
       "flags": [
         "external",
@@ -2145,13 +2509,34 @@
         "dv_profile_5",
         "hdr"
       ],
-      "license_note": "Cannot be synthesized with stock ffmpeg — requires Dolby RPU tooling or a licensed sample."
+      "license_note": "Authored from the Sol Levante HDR10 master: dovi_tool generate --profile 5, inject-rpu, then MP4Box -add :dvp=5. Verified: dv_profile=5, compat id 0.",
+      "width": 3840,
+      "height": 2160,
+      "framerate": 24,
+      "video": {
+        "codec": "libx265",
+        "profile": "Main 10",
+        "pix_fmt": "yuv420p10le",
+        "hdr": {
+          "kind": "dolby_vision",
+          "color_primaries": "bt2020",
+          "color_trc": "smpte2084",
+          "colorspace": "bt2020nc"
+        }
+      },
+      "audio": {
+        "codec": "eac3",
+        "channels": 6,
+        "sample_rate": 48000
+      },
+      "attribution": "Sol Levante (c) Netflix, licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Source: Netflix Open Content."
     },
     {
       "name": "external_dolby_vision_p8_1",
+      "uuid": "91964adc-86b5-5e8e-a652-980468e61303",
       "title": "Dolby Vision Profile 8.1 (HDR10-compatible base layer)",
       "description": "HEVC Main10 with Dolby Vision RPU, Profile 8.1. Base layer is HDR10 so HDR10 devices get valid playback; DV-capable devices use RPU.",
-      "source_path": "sources/external/dolby_vision_p8_1.mp4",
+      "source_path": "sources/masters/sollevante_dv_p81_2160p24.mp4",
       "container": "mp4",
       "flags": [
         "external",
@@ -2160,10 +2545,31 @@
         "hdr",
         "hdr10_base"
       ],
-      "license_note": "Cannot be synthesized with stock ffmpeg — requires Dolby RPU tooling or a licensed sample."
+      "license_note": "Authored the same way with --profile 8.1. Verified: dv_profile=8, compat id 1, so an HDR10 device plays the base layer.",
+      "width": 3840,
+      "height": 2160,
+      "framerate": 24,
+      "video": {
+        "codec": "libx265",
+        "profile": "Main 10",
+        "pix_fmt": "yuv420p10le",
+        "hdr": {
+          "kind": "dolby_vision",
+          "color_primaries": "bt2020",
+          "color_trc": "smpte2084",
+          "colorspace": "bt2020nc"
+        }
+      },
+      "audio": {
+        "codec": "eac3",
+        "channels": 6,
+        "sample_rate": 48000
+      },
+      "attribution": "Sol Levante (c) Netflix, licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Source: Netflix Open Content."
     },
     {
       "name": "external_hdr10_plus",
+      "uuid": "4654e03c-e2d0-5dc8-9380-5b6163b2f863",
       "title": "HDR10+ Dynamic Metadata",
       "description": "HEVC Main10 with HDR10+ dynamic tone-mapping metadata (SMPTE ST 2094-40).",
       "source_path": "sources/external/hdr10plus.mp4",
@@ -2178,6 +2584,7 @@
     },
     {
       "name": "external_dts_hd_ma",
+      "uuid": "4b8a504e-7bd1-579e-bb96-006d8376bf9e",
       "title": "DTS-HD Master Audio 5.1",
       "description": "H.264 in MKV with DTS-HD MA lossless 5.1 track. FFmpeg cannot encode DTS-HD MA — only decode.",
       "source_path": "sources/external/dts_hd_ma_5_1.mkv",
@@ -2192,6 +2599,7 @@
     },
     {
       "name": "external_truehd_atmos",
+      "uuid": "b69b3eee-d1be-52ef-a0a2-0032ba64e19d",
       "title": "Dolby TrueHD with Atmos",
       "description": "H.264 in MKV with Dolby TrueHD + Atmos object audio. FFmpeg cannot encode TrueHD.",
       "source_path": "sources/external/truehd_atmos.mkv",
@@ -2207,6 +2615,7 @@
     },
     {
       "name": "external_eac3_joc_atmos",
+      "uuid": "3b710490-1688-5d66-9926-6727446ae526",
       "title": "E-AC-3 with JOC (Dolby Digital Plus Atmos)",
       "description": "H.264 in MP4 with Dolby Digital Plus Joint Object Coding (Atmos). FFmpeg cannot encode JOC metadata.",
       "source_path": "sources/external/eac3_joc_atmos.mp4",
@@ -2221,20 +2630,42 @@
     },
     {
       "name": "external_4k_hevc_real_content",
+      "uuid": "7a8d3509-dd1c-545d-b8dd-1fd82b9aa99c",
       "title": "4K HEVC HDR10 real-world content",
       "description": "Real-world 4K HEVC HDR10 clip (not a test pattern) for realistic pipeline stress.",
-      "source_path": "sources/external/4k_hevc_hdr10.mkv",
-      "container": "mkv",
+      "source_path": "sources/masters/sollevante_hdr10_2160p24.mp4",
+      "container": "mp4",
       "flags": [
         "external",
         "4k",
         "hdr10",
         "real_content"
       ],
-      "license_note": "Sample must be obtained separately."
+      "license_note": "Real 4K HDR10 grade with genuine highlights and grain, not a test pattern.",
+      "width": 3840,
+      "height": 2160,
+      "framerate": 24,
+      "video": {
+        "codec": "libx265",
+        "profile": "Main 10",
+        "pix_fmt": "yuv420p10le",
+        "hdr": {
+          "kind": "hdr10",
+          "color_primaries": "bt2020",
+          "color_trc": "smpte2084",
+          "colorspace": "bt2020nc"
+        }
+      },
+      "audio": {
+        "codec": "eac3",
+        "channels": 6,
+        "sample_rate": 48000
+      },
+      "attribution": "Sol Levante (c) Netflix, licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Source: Netflix Open Content."
     },
     {
       "name": "external_vc1_bluray",
+      "uuid": "8e1596ce-5a50-53d0-ad33-2137be4d4f28",
       "title": "VC-1 Blu-ray sample",
       "description": "VC-1 (SMPTE 421M) video, typical Blu-ray format. FFmpeg can decode VC-1 but has no VC-1 encoder — sample must be sourced externally.",
       "source_path": "sources/external/vc1_bluray.m2ts",
@@ -2249,6 +2680,7 @@
     },
     {
       "name": "external_pgs_subtitle",
+      "uuid": "c65fea60-fad1-5326-a102-562906769e4a",
       "title": "External: PGS Blu-ray Subtitles",
       "description": "Bitmap PGS subtitle track from a Blu-ray. ffmpeg cannot synthesize image subtitles: it refuses text-to-bitmap conversion.",
       "source_path": "sources/external/pgs_subtitle.mkv",
@@ -2262,6 +2694,7 @@
     },
     {
       "name": "external_vobsub",
+      "uuid": "5a05eca8-b9a5-5a9d-ab2f-f2cab615ca93",
       "title": "External: VobSub DVD Subtitles",
       "description": "Bitmap VobSub (DVD) subtitle track. Same limitation as PGS — ffmpeg can decode but not author these from text.",
       "source_path": "sources/external/vobsub.mkv",
@@ -2272,6 +2705,209 @@
         "vobsub"
       ],
       "license_note": "Requires a real DVD-sourced VobSub track (.idx/.sub muxed into MKV)."
+    }
+  ],
+  "master_variants": [
+    {
+      "name": "master_hdr10_1080p24",
+      "uuid": "cac008a5-3010-572a-89b8-77a0e402053a",
+      "title": "Master: HDR10 1080p24 (real grade)",
+      "description": "The Sol Levante HDR10 grade downscaled to 1080p. Tests HDR handling at a non-4K size, where a pipeline may take a different scaling or tone-mapping path.",
+      "source_path": "sources/masters/sollevante_hdr10_1080p24.mp4",
+      "container": "mp4",
+      "width": 1920,
+      "height": 1080,
+      "framerate": 24,
+      "video": {
+        "codec": "libx265",
+        "profile": "Main 10",
+        "pix_fmt": "yuv420p10le",
+        "hdr": {
+          "kind": "hdr10",
+          "color_primaries": "bt2020",
+          "color_trc": "smpte2084",
+          "colorspace": "bt2020nc"
+        }
+      },
+      "audio": {
+        "codec": "eac3",
+        "channels": 6,
+        "sample_rate": 48000
+      },
+      "flags": [
+        "master",
+        "hdr",
+        "hdr10",
+        "real_content"
+      ],
+      "attribution": "Sol Levante (c) Netflix, licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Source: Netflix Open Content."
+    },
+    {
+      "name": "master_hlg_2160p24",
+      "uuid": "b1ee7e6f-37cf-5205-9106-3f50488e200f",
+      "title": "Master: HLG 2160p24 (real grade)",
+      "description": "Hybrid Log-Gamma transfer of the same grade. HLG signals differently from PQ and is the broadcast HDR path, so it exercises separate colour-handling code.",
+      "source_path": "sources/masters/sollevante_hlg_2160p24.mp4",
+      "container": "mp4",
+      "width": 3840,
+      "height": 2160,
+      "framerate": 24,
+      "video": {
+        "codec": "libx265",
+        "profile": "Main 10",
+        "pix_fmt": "yuv420p10le",
+        "hdr": {
+          "kind": "hlg",
+          "color_primaries": "bt2020",
+          "color_trc": "arib-std-b67",
+          "colorspace": "bt2020nc"
+        }
+      },
+      "audio": {
+        "codec": "eac3",
+        "channels": 6,
+        "sample_rate": 48000
+      },
+      "flags": [
+        "master",
+        "hdr",
+        "hlg",
+        "real_content"
+      ],
+      "attribution": "Sol Levante (c) Netflix, licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Source: Netflix Open Content."
+    },
+    {
+      "name": "master_dv_p84_2160p24",
+      "uuid": "1aa5bb3f-7b30-54e5-9adf-8f346fce8930",
+      "title": "Master: Dolby Vision Profile 8.4 (HLG-compatible)",
+      "description": "Dolby Vision Profile 8.4, authored with dovi_tool --profile 8.4 and MP4Box :dvp=8. MP4Box reports compatibility id 4, which declares an HLG base layer, while the container tags the transfer as smpte2084 (PQ). The two disagree, which is exactly the case where a player must decide whether to trust the dvvC box or the container.",
+      "source_path": "sources/masters/sollevante_dv_p84_2160p24.mp4",
+      "container": "mp4",
+      "width": 3840,
+      "height": 2160,
+      "framerate": 24,
+      "video": {
+        "codec": "libx265",
+        "profile": "Main 10",
+        "pix_fmt": "yuv420p10le",
+        "hdr": {
+          "kind": "dolby_vision",
+          "color_primaries": "bt2020",
+          "color_trc": "smpte2084",
+          "colorspace": "bt2020nc"
+        }
+      },
+      "audio": {
+        "codec": "eac3",
+        "channels": 6,
+        "sample_rate": 48000
+      },
+      "flags": [
+        "master",
+        "hdr",
+        "dolby_vision",
+        "dv_profile_8_4",
+        "real_content",
+        "signalling_conflict"
+      ],
+      "attribution": "Sol Levante (c) Netflix, licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Source: Netflix Open Content."
+    },
+    {
+      "name": "master_av1_hdr10_2160p24",
+      "uuid": "07b2cc8e-d7ee-51bb-a627-e6d61f72789d",
+      "title": "Master: AV1 HDR10 2160p24 (real grade)",
+      "description": "AV1 Main 10-bit carrying the HDR10 grade, with Opus 5.1. Covers the royalty-free 4K HDR path that no synthetic variant reaches.",
+      "source_path": "sources/masters/sollevante_av1_hdr10_2160p24.mp4",
+      "container": "mp4",
+      "width": 3840,
+      "height": 2160,
+      "framerate": 24,
+      "video": {
+        "codec": "libaom-av1",
+        "profile": "Main",
+        "pix_fmt": "yuv420p10le",
+        "hdr": {
+          "kind": "hdr10",
+          "color_primaries": "bt2020",
+          "color_trc": "smpte2084",
+          "colorspace": "bt2020nc"
+        }
+      },
+      "audio": {
+        "codec": "libopus",
+        "channels": 6,
+        "sample_rate": 48000
+      },
+      "flags": [
+        "master",
+        "hdr",
+        "hdr10",
+        "av1",
+        "real_content"
+      ],
+      "attribution": "Sol Levante (c) Netflix, licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Source: Netflix Open Content."
+    },
+    {
+      "name": "master_vp9_hdr10_1080p24",
+      "uuid": "1e632cda-f651-5e2f-89e3-23ef6a78a3a6",
+      "title": "Master: VP9 Profile 2 HDR10 1080p24 (real grade)",
+      "description": "VP9 Profile 2 10-bit HDR10 in WebM with Opus 5.1. The WebM HDR path differs from MP4 in how colour is signalled.",
+      "source_path": "sources/masters/sollevante_vp9_hdr10_1080p24.webm",
+      "container": "webm",
+      "width": 1920,
+      "height": 1080,
+      "framerate": 24,
+      "video": {
+        "codec": "libvpx-vp9",
+        "profile": "Profile 2",
+        "pix_fmt": "yuv420p10le",
+        "hdr": {
+          "kind": "hdr10",
+          "color_primaries": "bt2020",
+          "color_trc": "smpte2084",
+          "colorspace": "bt2020nc"
+        }
+      },
+      "audio": {
+        "codec": "libopus",
+        "channels": 6,
+        "sample_rate": 48000
+      },
+      "flags": [
+        "master",
+        "hdr",
+        "hdr10",
+        "vp9",
+        "real_content"
+      ],
+      "attribution": "Sol Levante (c) Netflix, licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Source: Netflix Open Content."
+    },
+    {
+      "name": "master_sdr_2160p24",
+      "uuid": "42c01e60-c099-58d0-92fd-6743085eec59",
+      "title": "Master: SDR 2160p24 (real content)",
+      "description": "The SDR grade of the same title at 4K, for side-by-side comparison against the HDR versions and for tone-mapping checks.",
+      "source_path": "sources/masters/sollevante_sdr_2160p24.mp4",
+      "container": "mp4",
+      "width": 3840,
+      "height": 2160,
+      "framerate": 24,
+      "video": {
+        "codec": "libx264",
+        "profile": "Constrained Baseline",
+        "pix_fmt": "yuv420p"
+      },
+      "audio": {
+        "codec": "eac3",
+        "channels": 6,
+        "sample_rate": 48000
+      },
+      "flags": [
+        "master",
+        "sdr",
+        "real_content"
+      ],
+      "attribution": "Sol Levante (c) Netflix, licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Source: Netflix Open Content."
     }
   ]
 }

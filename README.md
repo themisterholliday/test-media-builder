@@ -28,16 +28,109 @@ Everything is declared in one config file (`config/media_matrix.json`) and produ
 ## Quickstart
 
 ```bash
-# Bootstrap synthetic sources if you don't have real ones, then build everything
-make all
-
-# Equivalent explicit invocation
-python3 -m scripts.generate --bootstrap --jobs 4
-python3 -m scripts.verify
-python3 -m scripts.manifest
-python3 -m scripts.thumbnails
-python3 -m scripts.library
+make all            # build, verify, index, thumbnail, lay out the library, refresh the catalogue
 ```
+
+That is the whole first run. It takes a few minutes with `JOBS=4`; a 30-second
+build (`make all DURATION=30`) finishes in about 30 seconds.
+
+```bash
+make all JOBS=4           # parallel
+make all ONLY=video,edge  # restrict to sections
+make check                # what would be built, without building it
+```
+
+---
+
+## Common flows
+
+Each of these is a complete task. Run them from the repo root.
+
+### Build the library for the first time
+
+```bash
+make all
+```
+
+Sources are synthesized if you have not supplied your own. Nothing is downloaded.
+
+### Rebuild one variant after changing it
+
+```bash
+make generate VARIANT=h264_mp4_baseline FORCE=1
+make verify   VARIANT=h264_mp4_baseline
+make manifest && make library
+```
+
+`generate` skips anything already built, so `FORCE=1` is what makes it redo the
+one you changed.
+
+### Add a new variant
+
+```bash
+# 1. append an entry to config/media_matrix.json
+make ids                              # mint its UUID -- nothing works until it has one
+make check                            # confirm it resolves and lands in the right section
+make generate VARIANT=my_new_variant  # build just it
+make verify   VARIANT=my_new_variant  # decode, contract, NFO, bitstream assertions
+make all                              # refresh manifest, library and catalogue
+```
+
+`make ids` is not optional and not automatic: a hand-written entry has no
+identifier, and `catalog` refuses to run until it does. The full field reference
+is in [ARCHITECTURE.md](docs/ARCHITECTURE.md#extending-the-matrix).
+
+### Play the media from a Plex app
+
+```bash
+make servers                        # start Plex and Jellyfin in docker
+make plex-setup                     # create the three libraries and scan
+make plex-claim TOKEN=claim-xxxx    # from https://plex.tv/claim, expires in ~4 min
+make plex-status                    # confirm: claimed, pinned, three libraries
+```
+
+`plex-setup` also tells Plex which address to advertise. Without it a
+containerised server publishes its Docker NAT address and every app shows it
+offline. Re-run it if your machine's IP changes.
+
+### Check what the servers actually did with the files
+
+```bash
+make servercheck
+```
+
+Diffs both servers against `generated/manifest.json` and writes
+`generated/server_report.json`. A healthy run reports `mismatched 0`; the
+missing MXF file and the unindexed audio-only variants are expected and
+explained in the output.
+
+### Get the variant-to-Plex join for other tooling
+
+```bash
+make plexmatch                      # writes generated/plex_match.json
+make plexmatch WRITE_LABELS=1       # also stamp testlib-uuid:<uuid> labels in Plex
+```
+
+The file carries `_meta` (which server, when) and `by_uuid` (variant UUID to
+Plex rating keys). Schema:
+[ARCHITECTURE.md](docs/ARCHITECTURE.md#plex_matchjson-schema).
+
+### Start the Plex library over without re-claiming
+
+```bash
+make plex-reset-library && make plex-setup
+```
+
+`make servers-reset` also wipes the claim and needs a fresh token, so reach for
+it only when you want a genuinely new server.
+
+### Start the media over
+
+```bash
+make rebuild        # delete generated/ and library/, then build again
+make clean          # also remove the synthesized source assets
+```
+
 
 **Default duration is 5 minutes** (300 s). Use `--duration SECONDS` or `--duration-minutes MINUTES` to override, e.g. `python3 -m scripts.generate --duration 30` for a fast CI/smoke build. Changing the duration regenerates the synthesized sources and invalidates any existing outputs (via mtime comparison) so the whole library stays consistent.
 
@@ -61,7 +154,18 @@ See [docs/CATALOG.md](docs/CATALOG.md) for every variant with its id, codec and 
 
 ## CLI cheat sheet
 
-All commands support `--only SECTION[,SECTION…]` and `--variant NAME[,NAME…]` to restrict scope.
+Every `make` build target takes the same flags:
+
+| Flag | Effect |
+| --- | --- |
+| `JOBS=N` | parallel workers |
+| `ONLY=video,edge` | restrict to sections |
+| `VARIANT=name,name` | restrict to named variants |
+| `FORCE=1` | rebuild even if the output exists |
+| `DURATION=SECONDS` | override the 300 s default length |
+
+The underlying scripts take `--only`, `--variant`, `--force` and `--duration`
+directly.
 
 | Command                                           | Purpose                                                                                                                                  |
 | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |

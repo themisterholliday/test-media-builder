@@ -28,27 +28,28 @@ help:
 	@echo "  plex-setup      create the three Plex libraries and scan"
 	@echo "  servers-down    stop the servers, keeping their config"
 	@echo "  servers-reset   stop and wipe all server config"
-	@echo "  all             generate + verify + manifest + thumbs + library"
+	@echo "  all             generate + verify + manifest + thumbs + library + catalog"
 	@echo "  clean-generated remove everything under generated/"
 	@echo "  clean           remove generated/ and synthesized sources"
 	@echo ""
 	@echo "  Flags (all targets):  ONLY=video,edge  VARIANT=h264_mp4_baseline  JOBS=4"
+	@echo "  build flags:          JOBS=N  ONLY=section,..  VARIANT=name,..  FORCE=1  DURATION=SECONDS"
 	@echo "  library flags:        LINK_MODE=hardlink|symlink|copy  FACETS=codec,container,..."
 
 bootstrap:
 	$(PY) -m scripts.generate --bootstrap --check
 
 generate:
-	$(PY) -m scripts.generate --jobs $(JOBS) $(if $(ONLY),--only $(ONLY)) $(if $(VARIANT),--variant $(VARIANT))
+	$(PY) -m scripts.generate --jobs $(JOBS) $(if $(FORCE),--force) $(if $(DURATION),--duration $(DURATION)) $(if $(ONLY),--only $(ONLY)) $(if $(VARIANT),--variant $(VARIANT))
 
 force:
-	$(PY) -m scripts.generate --force --jobs $(JOBS) $(if $(ONLY),--only $(ONLY)) $(if $(VARIANT),--variant $(VARIANT))
+	$(PY) -m scripts.generate --force --jobs $(JOBS) $(if $(DURATION),--duration $(DURATION)) $(if $(ONLY),--only $(ONLY)) $(if $(VARIANT),--variant $(VARIANT))
 
 dry-run:
-	$(PY) -m scripts.generate --dry-run $(if $(ONLY),--only $(ONLY)) $(if $(VARIANT),--variant $(VARIANT))
+	$(PY) -m scripts.generate --dry-run $(if $(DURATION),--duration $(DURATION)) $(if $(ONLY),--only $(ONLY)) $(if $(VARIANT),--variant $(VARIANT))
 
 check:
-	$(PY) -m scripts.generate --check $(if $(ONLY),--only $(ONLY)) $(if $(VARIANT),--variant $(VARIANT))
+	$(PY) -m scripts.generate --check $(if $(DURATION),--duration $(DURATION)) $(if $(ONLY),--only $(ONLY)) $(if $(VARIANT),--variant $(VARIANT))
 
 verify:
 	$(PY) -m scripts.verify $(if $(ONLY),--only $(ONLY)) $(if $(VARIANT),--variant $(VARIANT))
@@ -135,7 +136,7 @@ plexmatch:
 		$(if $(ALL),--all) \
 		$(if $(JSON),--json $(JSON))
 
-all: generate verify manifest thumbs library
+all: generate verify manifest thumbs library catalog
 
 rebuild: clean-generated generate
 

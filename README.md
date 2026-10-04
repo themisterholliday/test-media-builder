@@ -7,9 +7,8 @@ Everything is declared in one config file (`config/media_matrix.json`) and produ
 ## Documents
 
 - **This file** — overview, requirements, quickstart, CLI cheat sheet, output layout.
-- **[docs/MATRIX.md](docs/MATRIX.md)** — full catalog of every variant, what it is, what it tests, how it's constructed.
-- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — pipeline flow, NFO / manifest / verify schemas, determinism model, extending the matrix.
-- **[sources/external/EXTERNAL_SAMPLES.md](sources/external/EXTERNAL_SAMPLES.md)** — the licensed / proprietary sample slots (DV, HDR10+, DTS-HD MA, TrueHD/Atmos, …).
+- **[docs/CATALOG.md](docs/CATALOG.md)** — every variant: id, name, container, codec, build status, coverage and the flag index. Generated; never edit by hand.
+- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — pipeline flow, NFO / manifest / verify schemas, determinism, asset identity, ffmpeg quirks, extending the matrix.
 
 ## Requirements
 
@@ -48,16 +47,17 @@ The full 5-minute build takes a few minutes with `JOBS=4`. A 30-second build com
 
 | Section   | Count | What it covers                                                                                                                                                                                                                                                    |
 | --------- | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| video     | 48    | **Chapters (4)** · H.264 / HEVC / AV1 / VP9 / **MPEG-2** / **MPEG-4 ASP (Xvid)** / **WMV2** · in MP4/MKV/TS/WebM/**AVI**/**WMV** · 8-bit + 10-bit · SDR / HDR10 / HLG · 24/25/29.97/30/60 fps · 16:9 / 4:3 / 9:16 / **anamorphic 64:45** · **progressive + 1080i + 480i interlaced** |
+| video     | 53    | **Chapters (4)** · H.264 / HEVC / AV1 / VP9 / **MPEG-2** / **MPEG-4 ASP (Xvid)** / **WMV2** · in MP4/MKV/TS/WebM/**AVI**/**WMV** · 8-bit + 10-bit · SDR / HDR10 / HLG · 24/25/29.97/30/60 fps · 16:9 / 4:3 / 9:16 / **anamorphic 64:45** · **progressive + 1080i + 480i interlaced** |
+| masters   | 6     | **Real content** (Netflix *Sol Levante*, CC BY 4.0) at 4K: HDR10 2160p + 1080p · **HLG** · **Dolby Vision P8.4** · **AV1 HDR10** · **VP9 P2 HDR10** · SDR — ingested, never re-encoded                                                                    |
 | audio     | 18    | AAC (mono/stereo/5.1/**7.1**), AC-3 5.1, E-AC-3 5.1, MP3, Opus, FLAC (16-bit + **24-bit 96k / 192k**), PCM (s16le stereo → **s24le stereo** → **7.1.4** → **9.1.4 Atmos-style bed**), **MP2**, **WMA2**                                                           |
 | subtitles | 6     | External SRT / WebVTT / ASS · embedded SRT / ASS / mov_text                                                                                                                                                                                                       |
 | streams   | 2     | HLS (m3u8 + TS segments) · DASH (mpd + fMP4 chunks)                                                                                                                                                                                                               |
 | edge      | 25    | No audio, audio-only, multi-audio, multi-subtitle (with forced flag), VFR, broken PTS, low/high bitrate, Annex B, AVCC, fragmented MP4, missing metadata, edit list, truncated file, **6 malformed-chapter cases**                                                                               |
-| external  | 10    | Slots for Dolby Vision P5, DV P8.1, HDR10+, DTS-HD MA, TrueHD/Atmos, E-AC-3 JOC, real-world 4K HEVC, **VC-1 Blu-ray** — must be dropped in manually                                                                                                               |
+| external  | 10    | **3 now filled** from the Sol Levante masters (DV P5, DV P8.1, real 4K HEVC HDR10). 7 still awaiting a drop-in: HDR10+, DTS-HD MA, TrueHD/Atmos, E-AC-3 JOC, VC-1 Blu-ray, PGS, VobSub                                                                    |
 
-**Total: 109 declared variants · 99 ffmpeg-synthesizable · 10 external slots awaiting user-supplied files.**
+**Total: 120 declared variants · 113 built (104 ffmpeg-synthesizable + 9 ingested real-content) · 7 external slots still awaiting user-supplied files.**
 
-See [docs/MATRIX.md](docs/MATRIX.md) for the full catalog with rationale per entry.
+See [docs/CATALOG.md](docs/CATALOG.md) for every variant with its id, codec and build status.
 
 ## CLI cheat sheet
 
@@ -95,6 +95,7 @@ make verify                     # full validation
 make manifest                   # write manifest.json
 make thumbs                     # extract thumbnails
 make all                        # generate + verify + manifest + thumbs
+make catalog                    # regenerate docs/CATALOG.md from the matrix
 make rebuild                    # rm -rf generated/ then build from scratch
 make clean                      # also remove synthesized source assets
 ```
@@ -136,156 +137,25 @@ generated/
 
 Every media file has a **sibling `.nfo`** with the same basename. Kodi/Plex/Jellyfin scrapers read the top-half `<movie>` schema; custom test tooling reads the `<testlib:testlib>` extension for edge flags, the ffmpeg command used, source/output SHAs, and HDR details. See [docs/ARCHITECTURE.md#nfo-schema](docs/ARCHITECTURE.md#nfo-schema) for the full schema.
 
-## On-screen overlay
+## Reference
 
-Every generated video carries two burned-in text blocks, so a single screenshot tells you which file you are looking at and exactly where in the timeline you are.
+Detail lives in [ARCHITECTURE.md](docs/ARCHITECTURE.md), one topic in one place:
 
-**Top-left — per-frame timing**, burned into `source_master.mov` once and inherited by every variant:
-
-```
-PTS 7.000000  FRAME 168
-TC  00:00:07.000
-```
-
-**Bottom-left — per-file identity**, drawn during each variant's encode:
-
-```
-h264_mp4_baseline
-h264 / mp4 / 1280x720@24 / aac 2ch
-```
-
-What this buys you: read the burned PTS off a paused frame and compare it against the player's reported position to catch seek drift; confirm from a screenshot that the server served the variant you asked for rather than a transcode of a different one.
-
-The overlay is drawn **before** interlacing and before any `setsar`, so it is never combed by field interleaving nor stretched by an anamorphic display aspect. On the three timestamp edge cases it deliberately shows the *pre-remap source* time, which is what makes the defect visible:
-
-| Variant | What the overlay reveals |
+| Topic | |
 | --- | --- |
-| `edge_edit_list` | The 0.5 s `itsoffset` shows as a gap between burned PTS and player position. |
-| `edge_variable_fps` | The `setpts` ramp is visible frame by frame against a linear source clock. |
-| `edge_broken_pts` | The injected 5 s jump appears as a discontinuity the burned clock does not share. |
+| [Asset identity](docs/ARCHITECTURE.md#asset-identity) | UUIDs, the short id in filenames, and which channels a media server actually reads |
+| [plex_match.json](docs/ARCHITECTURE.md#plex_matchjson-schema) | the variant-to-Plex join written on every `make plexmatch`, for tooling outside this repo |
+| [Chapters](docs/ARCHITECTURE.md#chapters) | the spec format, programme structures, and why chapters are not Plex markers |
+| [Geometry model](docs/ARCHITECTURE.md#geometry-model) | SAR vs DAR, `pad_to`, and why `scale` needs `setsar` |
+| [Per-variant duration](docs/ARCHITECTURE.md#per-variant-duration) | overriding length for one variant |
+| [The faceted library](docs/ARCHITECTURE.md#the-faceted-library-scriptslibrarypy) | how `library/` is projected from the manifest |
+| [Determinism model](docs/ARCHITECTURE.md#determinism-model) | what makes a rebuild reproducible |
+| [On-screen overlay](docs/ARCHITECTURE.md#on-screen-overlay) | the burnt-in PTS and media-info text |
+| [Audio capability](docs/ARCHITECTURE.md#audio-what-the-toolchain-can-actually-deliver) | measured per-codec channel support, and the silent downmixes |
+| [Real HDR and Dolby Vision](docs/ARCHITECTURE.md#real-hdr-and-dolby-vision-assets) | the Sol Levante masters and how the DV RPUs were authored |
+| [Extending the matrix](docs/ARCHITECTURE.md#extending-the-matrix) | adding a variant or an edge-case handler |
 
-Configure it under `defaults.overlay` in `config/media_matrix.json` (`enabled`, `font_file`, `font_size_ratio`, `font_color`, `box_color`, `margin_ratio`). Disable it for one run with `--no-burn-in`, or for a single variant with `"burn_in": false` on that matrix entry. Variants with no video stream — audio-only, external subtitles — and the verbatim `external_*` copies never receive it.
-
-> `verify` compares each NFO's recorded overlay state against what the matrix declares, so a library built with `--no-burn-in` while the config still says `"enabled": true` is reported as a mismatch — that is the check working. To turn the overlay off permanently, set `defaults.overlay.enabled` to `false` rather than relying on the flag.
-
-## Custom source imagery
-
-Drop image files into `sources/images/` and the synthetic master is built from them instead of the `testsrc2` gradient, so the library exercises realistic picture detail:
-
-```bash
-cp ~/my_test_charts/*.png sources/images/
-python3 -m scripts.generate --bootstrap --force
-```
-
-Each image is scaled to fit, padded to the master resolution (aspect preserved, no distortion), held for `defaults.image_hold_seconds` (default 5), and the set is cycled until the target duration is filled. Supported: PNG, JPEG, WebP, BMP, TIFF. Order is by filename, so prefix with `01_`, `02_` to control sequence.
-
-`defaults.image_mode` controls this: `auto` (default — use images when present, otherwise the test pattern), `slideshow` (require images, warn and fall back if the directory is empty), or `none` (always the test pattern).
-
-Changing the image set changes the master's picture without changing its duration, so the set is fingerprinted by name and size in `sources/.synthetic_sources.json`. Swap an image and the master regenerates, which cascades a rebuild of every downstream output through the existing mtime check. Each image's SHA-256 is recorded in every NFO, and the set fingerprint appears in `manifest.json` under `_meta.source_images_sha256`.
-
-> Note: `testsrc2` draws its own small built-in counter. Custom imagery replaces that pattern, so the burned-in overlay above becomes the only on-screen clock — which is why `drawtext` is a hard requirement once you use your own images.
-
-## Geometry and aspect ratio
-
-Every variant's **display** aspect is asserted at verify time, because it is not the same thing as its coded shape.
-
-> **The trap this library was caught by.** ffmpeg's `scale` filter rewrites SAR to preserve the *source* display aspect. Scaling a 16:9 master to 720×540 silently produces SAR 4:3 and **DAR 16:9** — not the 4:3 the dimensions imply. Three variants shipped for months claiming ratios they did not have. The chain now ends in `setsar=1` unless a variant declares `video.sar` deliberately, so a coded frame means what it looks like.
-
-```
-scale=720:540           ->  SAR 4:3, DAR 16:9    ← the bug
-scale=720:540,setsar=1  ->  SAR 1:1, DAR 4:3     ← intended
-```
-
-Coverage now spans **2.39:1 scope, 1.85:1 flat, 2:1 Univisium, 16:9, 20:11, 11:9, 4:3, 1:1 square and 9:16 vertical**, where before 46 of 47 files displayed 16:9.
-
-| Group | Variants |
-| --- | --- |
-| Cinema | `aspect_scope_239` (1920×804), `aspect_flat_185`, `aspect_univisium_200` |
-| Square / vertical | `aspect_square_1_1`, `aspect_vertical_9_16` |
-| **Baked-in bars** | `aspect_letterbox_239`, `aspect_pillarbox_43` — the frame reports 16:9 and only the picture is scope or 4:3, which is what auto-crop logic trips on |
-| Anamorphic | `aspect_anamorphic_hdv` (SAR 4:3), `_dvcpro` (SAR 3:2), `_ntsc_wide` (SAR 40:33 → 20:11) |
-| Rotation | `edge_rotate_90` / `_180` / `_270` — real display-matrix side data, as phones record portrait |
-| Conflict | `edge_aspect_conflict` — coded 1280×720 but the container declares 4:3 |
-
-Two implementation notes worth knowing. `-metadata:s:v rotate=` is inert in ffmpeg 8; rotation is stamped by a stream-copy remux with `-display_rotation` as a post-encode step. And ffprobe normalises rotation into −180…180, so 270 reports as `-90`.
-
-## Cadence, chroma and colour
-
-- **23.976 fps** (`h264_mp4_23976`) — the standard film rate, previously absent, plus 48 and 50 fps.
-- **3:2 pulldown** (`mpeg2_ts_telecine`) — 23.976 film carried as 29.97 interlaced; needs inverse telecine to recover.
-- **4:2:2 10-bit, 4:4:4 8-bit, 12-bit HEVC** — the library was otherwise entirely 4:2:0.
-- **Full-range levels** (`h264_mp4_full_range`, which ffmpeg represents as `yuvj420p`) and **BT.601 matrix** (`h264_mp4_bt601`).
-
-## Per-variant duration
-
-A geometry or chroma test does not need five minutes. Any entry may declare `duration_seconds`, overriding `defaults.duration_seconds`:
-
-```json
-{ "name": "aspect_scope_239", "duration_seconds": 20, ... }
-```
-
-Geometry, chroma, colour and container variants build at 20 s; audio and A/V-sync ones at 60 s; everything else stays at the library default. A variant longer than the synthesized source is a hard error rather than a silently short file. Chapter specs scale to the variant's own duration, not the global one.
-
-## Chapters
-
-Ten variants carry chapter markers, written through an FFMETADATA sidecar kept at `generated/_chapters/<variant>.ffmeta` so the exact input is inspectable and the recorded ffmpeg command re-runs as-is.
-
-**Well-formed** — `chapters_mp4_10`, `chapters_mkv_10` (same ten chapters in both container models), `chapters_mkv_unicode` (accented, Japanese, Arabic, Greek and emoji titles — all verified to round-trip), and `chapters_mkv_100` for chapter-list and scrubber density.
-
-**Malformed** — the cases where playback bugs actually live. Each is a real muxer result, not a theory:
-
-| Variant | Authored | What the muxer actually did |
-| --- | --- | --- |
-| `edge_chapters_nonzero_start` | 3, first at 10% | 3 kept; unchaptered head preserved |
-| `edge_chapters_overlap` | 3 overlapping | 3 kept, overlaps intact |
-| `edge_chapters_zero_length` | 3, one zero-length | **2 kept** — one was dropped |
-| `edge_chapters_past_eof` | 2, last ends at 180% | 2 kept, end **clamped** to the duration |
-| `edge_chapters_out_of_order` | 3 descending | **1 kept** — the rest discarded |
-| `edge_chapters_stripped` | 5, then `-map_chapters -1` | 0 — strip path confirmed |
-
-`verify` holds the well-formed set to exact count, titles, ordering and bounds. For the malformed set it records what happened as a *warning* rather than a failure, because a muxer is entitled to normalise nonsense — the finding is what it chose to do.
-
-Declare chapters on any variant with a `chapters` block:
-
-```json
-{ "flags": ["chapters"],
-  "chapters": { "mode": "even", "count": 10, "title_prefix": "Chapter" } }
-```
-
-`mode` is `even` (split the duration into N) or `explicit` (an `entries` list). Explicit times default to `unit: "fraction"` of the total duration, so a spec stays meaningful whether you build at 30 s or 300 s.
-
-## Faceted library (`library/`)
-
-`generated/` is organised by build stage, which describes how a file was made rather than what it tests. `make library` projects the same files into `library/`, where each capability is a TV show and every variant carrying it is an episode:
-
-```
-library/
-├── Chapters/
-│   ├── tvshow.nfo                                        <tvshow>
-│   ├── poster.jpg                                        tiled from this show's episodes
-│   └── Season 01/
-│       ├── Chapters - S01E01 - chapters_mkv_10.mkv       hardlink
-│       ├── Chapters - S01E01 - chapters_mkv_10.nfo       <episodedetails>
-│       └── Chapters - S01E01 - chapters_mkv_10-thumb.jpg
-├── H.264 Video/  HEVC Video/  AV1 Video/  …
-├── MP4 Container/  MKV Container/  TS Container/  …
-├── AAC Audio/  AC3 Audio/  FLAC Audio/  …
-└── ASS Subtitles/  SRT Subtitles/  WebVTT Subtitles/
-```
-
-Currently **35 shows, 191 episodes**. Point your media server at `library/` — *not* at `generated/` as well, or every file appears twice.
-
-**Episodes are hardlinks, so the tree is free.** One file carries several names: `chapters_mp4_10.mp4` has `nlink=5` — the original plus H.264 Video, MP4 Container, AAC Audio and Chapters. `generated/` alone is 7.6 GB; `generated/` and `library/` together are still 7.6 GB. Total non-media overhead is 52 KB of NFOs.
-
-Hardlinks were chosen over symlinks because each path is a *real* file, so a server reading through a container bind mount or a network share resolves it — a symlink to a host path would dangle.
-
-> **Re-run `make library` after every `make generate`.** ffmpeg usually rewrites a file in place, which keeps existing links live, but anything that replaces the inode (notably `make clean-generated` followed by a rebuild) leaves links pointing at the old content. Each run compares inodes and relinks whatever is stale, and `make all` ends with `library` so the normal path cannot drift.
-
-Options: `--link-mode hardlink|symlink|copy`, `--facets codec,container,audio,subtitles,chapters`, `--min-episodes N` (15 shows currently have a single episode), `--no-posters`.
-
-Episode numbers are stable. They are stored in `library/.episode_map.json`, so adding a variant that sorts alphabetically first takes the next free number rather than renumbering everything after it. The tool also records what it created in `library/.library_state.json` and prunes only those paths — it never deletes a file it did not write.
-
-Streams are excluded: HLS and DASH outputs are directories, which cannot be hardlinked, and a `.mpd` is not a scraper-playable episode.
+---
 
 ## Media server validation
 
@@ -297,7 +167,7 @@ make servercheck    # diff both inventories against the manifest
 make servers-down   # stop and wipe their config volumes
 ```
 
-Plex is published on **32401**, not 32400, so a real Plex Media Server already running on the host is never disturbed. Both containers mount `library/` **read-only**, so neither can write metadata back into the generated tree. Config lives in named volumes, so `servers-down` returns both servers to a clean state.
+Plex is published on **32402**. Not 32400, and not 32401 either: a native Plex Media Server binds *both* of those — 32400 publicly and 32401 on loopback — so 32401 collided with the real server and `http://localhost:32401` resolved to whichever of the two won the race. Override with `PLEX_PORT` if 32402 is taken. Both containers mount `library/` **read-only**, so neither can write metadata back into the generated tree. Config lives in named volumes, so `servers-down` returns both servers to a clean state.
 
 No Plex account is required: the container runs unclaimed with `ALLOWED_NETWORKS`, which permits API access from the Docker networks. Jellyfin's setup wizard is driven over its API. Jellyfin's trickplay and chapter-image extraction are switched **off** at library creation — left on, it generates sprite sheets for every file, including the 100-chapter one.
 
@@ -310,19 +180,24 @@ Findings are sorted into four buckets so that a real defect is not buried:
 | `structural` | a consequence of the library's shape, not a defect — audio-only files are not indexed by a TV library |
 | `notes` | documented server behaviour, e.g. Plex reports a coarse aspect bucket |
 
-### What the first run found
+### What validation finds
+
+Latest run, against both servers with the full 120-variant matrix linked:
 
 | | Plex | Jellyfin |
 | --- | --- | --- |
-| Indexed | 76 / 97 | 79 / 97 |
+| Indexed | 90 / 111 | 108 / 111 |
 | Technical mismatches | 0 | 0 |
 | Genuinely missing | **1** — DNxHD in MXF | 0 |
-| Audio-only not indexed | 20 | 18 |
+| Audio-only not indexed | 20 | 3 |
+
+Plex reconciles exactly: 111 linked − 20 audio-only − 1 MXF = 90, all ok.
 
 Three things worth knowing, all confirmed against the running servers:
 
 - **Plex will not ingest DNxHD in MXF; Jellyfin will.** A real capability difference between the two.
-- **Plex's `aspectRatio` is a coarse bucket.** Across the entire 109-variant library it emits only four values: `1.33`, `1.78`, `1.85`, `2.35`. A 1:1 square file reports `1.33` and a 9:16 vertical file also reports `1.33`. Its `width`/`height` are exact, so those are what the check compares.
+- **Plex's `aspectRatio` is a coarse bucket.** Across the entire library it emits only four values: `1.33`, `1.78`, `1.85`, `2.35`. A 1:1 square file reports `1.33` and a 9:16 vertical file also reports `1.33`. Its `width`/`height` are exact, so those are what the check compares.
+- **Jellyfin caches stream details across a rebuild.** After a file was re-encoded in place, Jellyfin kept reporting the old track list — one variant showed 0 audio tracks for a file that plainly has one. A `POST /Library/Refresh` cleared it. Plex re-read the same file without prompting, so a mismatch on one server and not the other is worth retrying before believing.
 - **Both servers read chapters correctly**, including the malformed cases — Plex agrees that the out-of-order file has one chapter and the stripped file has none. Plex omits chapters unless the request asks for them with `?includeChapters=1`.
 
 ## Using the library from Plex apps
@@ -334,10 +209,45 @@ Everything is local and self-contained: each person runs their own server agains
 ```bash
 make generate && make library      # build the media and the library tree
 make servers                       # start Plex (and Jellyfin) in docker
-make plex-setup CLAIM=<token>      # create the libraries and claim the server
+make plex-setup                    # create the three libraries and scan
+make plex-claim TOKEN=claim-xxxx   # attach the server to your Plex account
 ```
 
-Get the claim token from [plex.tv/claim](https://plex.tv/claim) — it expires after about four minutes. Omit `CLAIM=` and the server still works over the local API, but Plex apps will not discover it.
+Get the token from [plex.tv/claim](https://plex.tv/claim) and pass it straight in:
+
+```bash
+make plex-claim TOKEN=claim-xxxxxxxxxxxxxxxxxxxx
+```
+
+Fetch it immediately before you run the command — it expires in about four minutes. If it
+has expired you get `claim failed (tokens expire after ~4 minutes)`; get a new one and run
+the same command again. Nothing else needs redoing: the claim goes to the running server,
+so there is no reset and no file to edit.
+
+Check state at any time, without changing anything:
+
+```bash
+make plex-status
+```
+```
+  url        : http://localhost:32402
+  name       : TESTLIB (disposable test library)
+  machine id : df90a6326d2b...
+  claimed    : no   (run: make plex-claim TOKEN=claim-xxxx)
+  plex pass  : no
+  pinned     : yes — writes to this server are allowed
+  libraries  : 3
+```
+
+Claiming is optional. Without it the server still answers the local API and every
+validation target works — but Plex apps will not discover it, and account-level features
+such as Plex Pass do not apply.
+
+Once claimed the server appears in your account named **`TESTLIB (disposable test
+library)`**, deliberately blunt so it is not mistaken for your own server.
+
+Claim once. It survives restarts and `make servers-down`, and `make plex-reset-library`
+rebuilds the library without losing it. Only `make servers-reset` drops it.
 
 `library/` is built as three roots, because Plex needs three library types to reach everything:
 
@@ -349,28 +259,147 @@ Get the claim token from [plex.tv/claim](https://plex.tv/claim) — it expires a
 
 All three are hardlinks into `generated/`, so the extra trees cost no disk.
 
-**Why a flat library exists.** Plex's TV scanner rewrites show names that look like they contain technical tokens, so `Widescreen 16x9` is filed as `Widescreen` and unrelated shows merge into it. A first attempt produced 4 shows out of 52 directories. Other Videos applies no such naming rules, so every variant appears exactly once under the name the matrix gave it. Use the faceted library to browse and the flat library to test.
+**Why a flat library exists.** Plex's TV scanner rewrites show names that look like they contain technical tokens, so `Widescreen 16x9` is filed as `Widescreen` and unrelated shows merge into it. The most recent scan produced **12 shows out of 52 directories**, with `Widescreen` absorbing dozens of unrelated episodes and `Academy 4x3` reduced to `Academy`. The faceted tree is therefore unreliable as a count — 420 episode files became 90 Plex episodes. Other Videos applies no such naming rules, so every variant appears exactly once under the name the matrix gave it. Use the faceted library to browse and the flat library to test.
 
 ### Reach
 
-**92 of 97 built variants are playable from Plex apps.** The five that are not:
+**106 of 113 built variants are playable from Plex apps.** The seven that are not:
 
 | Variant | Why |
 | --- | --- |
 | `sub_external_srt_eng`, `_webvtt_eng`, `_ass_eng` | Subtitle sidecars are not playable media in any server. They belong beside a video, not as items. |
 | `dnxhd_mxf_pcm` | Plex will not ingest DNxHD in MXF. Jellyfin will — see the validation section. |
 | `audio_eac3_51` | A raw E-AC-3 elementary stream is indexed by neither the Music nor the Video Files scanner. |
+| `hls_h264_aac`, `dash_h264_aac` | Stream outputs are directories, not files. A scanner indexes media files, so they are excluded from `library/` entirely. |
 
 Two behaviours worth knowing when scripting against this, both learned the hard way:
 
 - **Agent and scanner generations must match**, or the API answers `400 new scanner needs to be paired with new agent`. Confusingly, the modern `tv.plex.agents.none` pairs with the plainly-named scanners — `Plex Video Files`, not `Plex Video Files Scanner`.
 - **A refresh issued immediately after creating a section is silently dropped.** The section reports `scannedAt` unset and stays empty forever. `plexsetup` waits, then refreshes, then polls until every section is idle.
 
-### Claiming, and how to avoid claiming by accident
+### Claiming the test server to an account
 
-`ALLOWED_NETWORKS` grants unauthenticated access to the whole API — including `/myplex/claim`. An unclaimed server is therefore not a stable state if anything on the host can reach it: opening the web UI while signed in to Plex is enough to attach it to your account. That is fine when it is what you want, and `make plex-setup CLAIM=` makes it deliberate. If you would rather it stayed unclaimed, narrow `ALLOWED_NETWORKS` to the container subnet and avoid the web UI.
+An unclaimed server works for API checks but Plex apps will not discover it, and
+account-level features — Plex Pass among them — do not apply. Claiming fixes both.
 
-Server config persists under `docker/config/` (gitignored), so a claimed server keeps its libraries and settings across restarts. `make servers-down` stops the containers; `make servers-reset` wipes them back to nothing.
+The token comes from <https://plex.tv/claim> and **expires after about four minutes**,
+so it cannot be committed. Put it in `docker/.env` (gitignored; copy
+`docker/.env.example`):
+
+```bash
+cp docker/.env.example docker/.env
+# paste the claim-xxxxxxxx token into PLEX_CLAIM
+make servers-reset      # a claim only applies to a server with no existing config
+make plex-setup
+```
+
+`PLEX_CLAIM` is read by the official image on **first boot only**. To claim a server
+that is already running, pass the token directly instead:
+
+```bash
+make plex-setup CLAIM=claim-xxxxxxxx
+```
+
+**The test server is named `TESTLIB (disposable test library)`.** Once claimed it
+appears in your Plex account beside your real server, so `plexsetup` sets a blunt name
+on every run. Override with `--name`.
+
+### Apps show the server as offline
+
+Inside a container Plex only sees the Docker NAT address, so it advertises something
+like `172.22.0.2:32400` to plex.tv. No device on your LAN can reach that, and every app
+shows the server offline even though it is running and answering locally.
+
+`make plex-setup` fixes it: it detects the host's LAN address and sets
+`customConnections` to `http://<host-ip>:<published-port>`. After that plex.tv hands
+apps a reachable connection:
+
+```
+https://172-22-0-2.<hash>.plex.direct:32400     local=1   <- unreachable, fails fast
+https://192-168-1-123.<hash>.plex.direct:32402  local=1   <- the one apps use
+```
+
+Both are listed. The NAT entry cannot be removed, but it fails immediately so clients
+fall through to the working one. Verified end to end — valid certificate, `HTTP 200`,
+correct `machineIdentifier`, and an authenticated library listing over the
+`plex.direct` URL.
+
+**Re-run `make plex-setup` if your machine's IP changes.** The advertised address is
+recorded once; DHCP moving the host leaves it stale and the server goes offline again.
+
+### Securing the server
+
+The server is reachable on the LAN so Plex apps on a phone or TV can play from it.
+That is the point, and it is safe **as long as the API requires authentication**.
+
+It did not, at first. The stack shipped with:
+
+```yaml
+ALLOWED_NETWORKS: 10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
+```
+
+which grants **unauthenticated** access to the whole API from every address in those
+ranges. Measured on a published port, any device on the LAN could read and write
+settings:
+
+```
+http://192.168.1.x:32402/:/prefs   ->  HTTP 200, no token
+allowMediaDeletion = 1
+```
+
+That includes changing preferences, deleting media and re-claiming the server. It was
+only there so the headless tooling could work against an *unclaimed* server.
+
+Once the server is claimed, a token replaces it:
+
+```bash
+make plex-claim TOKEN=claim-xxxx   # claim the server
+make plex-token                    # store its token in docker/.env (gitignored)
+```
+
+Every script then authenticates with `PLEX_TOKEN`, and `ALLOWED_NETWORKS` stays empty.
+Verified after the change:
+
+| | localhost | LAN address |
+| --- | --- | --- |
+| No token | **401** | **401** |
+| With token | 200 | 200 |
+
+Plex apps are unaffected — they authenticate through your account. `allowMediaDeletion`
+is now `0` as well, so even an authenticated mistake cannot delete source media.
+
+Jellyfin needed no change: only `/System/Info/Public` is open, everything else already
+returned 401.
+
+**If you run an unclaimed throwaway server**, set `ALLOWED_NETWORKS` in `docker/.env`
+to a single subnet — the Docker bridge, not `192.168.0.0/16` — and expect the API to be
+open to it.
+
+### Resetting without losing the claim
+
+Claim once and it lasts: the token lives in `Preferences.xml` inside the `plex-config`
+Docker volume, which survives restarts and `make servers-down`. Only a full reset
+destroys it.
+
+So there are two different resets, and the difference matters once you are claimed:
+
+| Target | Library | Claim | Machine identifier / pin |
+| --- | --- | --- | --- |
+| `make servers-down` | kept | kept | kept |
+| `make plex-reset-library` | **wiped** | kept | kept |
+| `make servers-reset` | wiped | **lost** | **lost** |
+
+`plex-reset-library` removes only `Databases`, `Media` and `Metadata`, leaving
+`Preferences.xml` alone. Verified: the machine identifier is unchanged after a wipe, so
+the write guard's pin stays valid and no fresh claim token is needed.
+
+```bash
+make plex-reset-library    # clean library, same server identity
+make plex-setup            # recreate the three libraries and scan
+```
+
+Reach for `servers-reset` only when you want a genuinely new server — and expect to
+fetch a new claim token and re-run `plex-setup` to re-pin afterwards.
 
 ## Sources
 
@@ -384,7 +413,7 @@ If the configured duration changes (via `--duration` or editing `config/media_ma
 
 To use real sources, drop files with those exact names into `sources/` before running the generator — it only synthesizes what's missing (and won't overwrite a real file unless its duration deviates from the target).
 
-External samples (DV, HDR10+, DTS-HD, etc.) go under `sources/external/`. See [sources/external/EXTERNAL_SAMPLES.md](sources/external/EXTERNAL_SAMPLES.md) for the seven pre-declared slots and how to add new ones.
+External samples (DV, HDR10+, DTS-HD, etc.) go under `sources/external/`. See [docs/CATALOG.md](docs/CATALOG.md#external-10) for the seven pre-declared slots and how to add new ones.
 
 ## What each script produces
 
@@ -394,18 +423,6 @@ External samples (DV, HDR10+, DTS-HD, etc.) go under `sources/external/`. See [s
 | `scripts/verify.py`     | `generated/verify_report.json`                                                       | Post-build validation — every file decodes, matches its declared contract, has a valid NFO, satisfies per-flag bitstream assertions. |
 | `scripts/manifest.py`   | `generated/manifest.json`                                                            | Machine-readable library index for downstream test automation.                                                                       |
 | `scripts/thumbnails.py` | `generated/_thumbs/*.jpg`, `contact_sheet.jpg`                                       | Visual sanity check — catches HDR tone-mapping / color-range / orientation bugs that probes don't see.                               |
-
-## Determinism model
-
-**Structural, not bit-identical.** Re-running the generator against the same matrix + same ffmpeg produces the same _set_ of files with the same _declared structural properties_ (codec, pix_fmt, resolution, track count, HDR metadata, flags). Byte-identity isn't guaranteed — encoders are multi-threaded by default, and muxer timestamps include write-time.
-
-After each encode, the output is ffprobed and checked against an implicit contract derived from the matrix entry. If the encoder silently produces a different codec or pix_fmt, the build fails with a clear diff. `verify.py` re-runs the same contract check post-hoc, plus decode and bitstream assertions.
-
-See [docs/ARCHITECTURE.md#determinism-model](docs/ARCHITECTURE.md#determinism-model).
-
-## Extending the matrix
-
-To add a new synthesizable variant, append an entry to the relevant array in `config/media_matrix.json`, run `make check` to confirm it resolves, then `make generate` to build it. To add a new external sample slot, see [sources/external/EXTERNAL_SAMPLES.md](sources/external/EXTERNAL_SAMPLES.md). Full walkthrough: [docs/ARCHITECTURE.md#extending-the-matrix](docs/ARCHITECTURE.md#extending-the-matrix).
 
 ## Troubleshooting
 

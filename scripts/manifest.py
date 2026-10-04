@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .bootstrap import image_set_fingerprint, list_source_images
-from .ffutil import bit_depth_for, config_sha256, ffmpeg_bin, ffmpeg_version, rate_to_float, require_binaries, sha256_file
+from .ffutil import bit_depth_for, config_sha256, ffmpeg_version, rate_to_float, require_binaries, sha256_file
 from .ids import mint, short
 from .generate import (
     CONFIG_PATH,

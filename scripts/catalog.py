@@ -103,7 +103,7 @@ def _section_table(variants: list, built: dict, defaults: dict) -> list[str]:
     return lines
 
 
-def _coverage(cfg: dict) -> list[str]:
+def _coverage(cfg: dict) -> tuple[list[str], Counter]:
     """Compute what the matrix collectively exercises, so the table cannot go stale."""
     containers, vcodecs, acodecs, layouts, geometries, flags = (
         Counter(), Counter(), Counter(), Counter(), Counter(), Counter())
@@ -140,7 +140,7 @@ def _coverage(cfg: dict) -> list[str]:
     ], flags
 
 
-def _flag_index(cfg: dict, flags: Counter) -> list[str]:
+def _flag_index(cfg: dict) -> list[str]:
     """List which variants carry each flag, the cross-cutting view of the matrix."""
     by_flag = defaultdict(list)
     for _section, v in iter_variants(cfg):
@@ -215,7 +215,7 @@ def build(cfg: dict, manifest: dict | None) -> str:
         out += _section_table(variants, built, defaults)
         out += ["", "---", ""]
 
-    coverage, flags = _coverage(cfg)
+    coverage, _flag_counts = _coverage(cfg)
     out += ["## Coverage", "",
             "What the matrix collectively exercises. Computed from the matrix, so it cannot",
             "disagree with the tables above.", ""]
@@ -223,7 +223,7 @@ def build(cfg: dict, manifest: dict | None) -> str:
     out += ["", "---", "", "## Flag index", "",
             "Flags are how cross-cutting properties are expressed. A variant carrying",
             "`chapters` may live in any section.", ""]
-    out += _flag_index(cfg, flags)
+    out += _flag_index(cfg)
     out += ["", "---", "", "## Full UUID index", "",
             "| ID | UUID | Name |", "| --- | --- | --- |"]
     for _section, v in iter_variants(cfg):

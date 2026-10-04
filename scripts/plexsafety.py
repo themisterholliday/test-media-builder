@@ -126,7 +126,10 @@ def is_test_server(identity: dict, pin: str | None = None,
     """
     if pin and identity.get("machine_identifier") == pin:
         return True
-    unclaimed = identity.get("claimed") in ("0", "")
+    # Only an explicit "0" counts. An absent attribute is unknown, not safe:
+    # treating it as unclaimed would pass a real server that simply does not
+    # report the field.
+    unclaimed = identity.get("claimed") == "0"
     if pin and not unclaimed_is_enough:
         # A pin exists and this is not it. Being unclaimed is not enough: some
         # other disposable server is not the one holding this project's data.

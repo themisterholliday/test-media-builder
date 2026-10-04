@@ -13,7 +13,6 @@ Writes generated/verify_report.json and exits non-zero if any variant failed.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import logging
 import subprocess

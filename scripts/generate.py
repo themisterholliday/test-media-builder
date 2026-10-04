@@ -13,14 +13,12 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
-import hashlib
 import json
 import logging
 import os
 import platform
 import re
 import shutil
-import subprocess
 import tempfile
 import sys
 from dataclasses import dataclass, field
@@ -45,6 +43,7 @@ from .ffutil import (
     FFCapabilityMissing,
     FFExecError,
     configure_binaries,
+    config_sha256,
     ffmpeg_bin,
     ffmpeg_version,
     ffprobe,
@@ -551,7 +550,7 @@ def _ingest(src: Path, dst: Path) -> None:
         shutil.copy2(src, dst)
 
 
-def _execute(plan: Plan, defaults: dict, *, dry_run: bool, force: bool, ffmpeg_version: str) -> Outcome:
+def _execute(plan: Plan, defaults: dict, *, dry_run: bool, force: bool, ffmpeg_ver: str) -> Outcome:
     if plan.kind == "external":
         src = Path(plan.variant["source_path"])
         if not src.is_absolute():
@@ -568,7 +567,7 @@ def _execute(plan: Plan, defaults: dict, *, dry_run: bool, force: bool, ffmpeg_v
         if errs:
             return Outcome(plan=plan, status="contract_failed", message="; ".join(errs), probe=probe)
 
-        _write_nfo_for(plan, probe=probe, ffmpeg_cmd=None, ffmpeg_version=ffmpeg_version,
+        _write_nfo_for(plan, probe=probe, ffmpeg_cmd=None, ffmpeg_version=ffmpeg_ver,
                        extra_source=src, overlay=defaults.get("overlay"))
         return Outcome(plan=plan, status="generated", probe=probe)
 
@@ -626,7 +625,7 @@ def _execute(plan: Plan, defaults: dict, *, dry_run: bool, force: bool, ffmpeg_v
             probe=probe,
         )
 
-    _write_nfo_for(plan, probe=probe, ffmpeg_cmd=["ffmpeg", *args], ffmpeg_version=ffmpeg_version,
+    _write_nfo_for(plan, probe=probe, ffmpeg_cmd=["ffmpeg", *args], ffmpeg_version=ffmpeg_ver,
                    overlay=defaults.get("overlay"))
     return Outcome(plan=plan, status="generated", ffmpeg_cmd=["ffmpeg", *args], probe=probe)
 
@@ -649,7 +648,7 @@ def _write_nfo_for(
     *,
     probe: dict,
     ffmpeg_cmd: list[str] | None,
-    ffmpeg_version: str,
+    ffmpeg_ver: str,
     extra_source: Path | None = None,
     overlay: dict | None = None,
 ) -> None:
@@ -701,7 +700,7 @@ def _write_nfo_for(
         tags=tags,
         probe=probe,
         ffmpeg_cmd=ffmpeg_cmd[1:] if ffmpeg_cmd else None,
-        ffmpeg_version=ffmpeg_version,
+        ffmpeg_version=ffmpeg_ver,
         source_refs=source_refs,
         edge_flags=v.get("flags", []),
         hdr=hdr if isinstance(hdr, dict) else None,
@@ -712,7 +711,7 @@ def _write_nfo_for(
     write_nfo(plan.nfo_path, payload)
 
 
-def _refresh_nfos(plans: list[Plan], defaults: dict, ffmpeg_version: str) -> int:
+def _refresh_nfos(plans: list[Plan], defaults: dict, ffmpeg_ver: str) -> int:
     """Rewrite every NFO from the outputs already on disk, without re-encoding.
 
     Metadata-only fixes (a new NFO field, a corrected derivation) would otherwise
@@ -736,7 +735,7 @@ def _refresh_nfos(plans: list[Plan], defaults: dict, ffmpeg_version: str) -> int
             src = Path(plan.variant["source_path"])
             extra = src if src.is_absolute() else ROOT / src
         _write_nfo_for(
-            plan, probe=probe, ffmpeg_cmd=None, ffmpeg_version=ffmpeg_version,
+            plan, probe=probe, ffmpeg_cmd=None, ffmpeg_version=ffmpeg_ver,
             extra_source=extra, overlay=defaults.get("overlay"),
         )
         written += 1
@@ -895,7 +894,7 @@ def main(argv: list[str] | None = None) -> int:
 
     def _run_one(plan: Plan) -> Outcome:
         try:
-            return _execute(plan, defaults, dry_run=ns.dry_run, force=ns.force, ffmpeg_version=ffv)
+            return _execute(plan, defaults, dry_run=ns.dry_run, force=ns.force, ffmpeg_ver=ffv)
         except Exception as e:  # noqa: BLE001
             return Outcome(plan=plan, status="failed", message=repr(e))
 
@@ -939,13 +938,12 @@ def main(argv: list[str] | None = None) -> int:
     return 1 if hard_failures else 0
 
 
-def _write_build_manifest(cfg: dict, ffmpeg_version: str, outcomes: list["Outcome"], duration_seconds: int) -> None:
+def _write_build_manifest(cfg: dict, ffmpeg_ver: str, outcomes: list["Outcome"], duration_seconds: int) -> None:
     """Write generated/build_manifest.json with reproducibility metadata."""
-    canonical = json.dumps(cfg, sort_keys=True, separators=(",", ":"))
-    matrix_sha = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    matrix_sha = config_sha256(cfg)
     payload = {
         "built_at": datetime.now(timezone.utc).isoformat(),
-        "ffmpeg_version": ffmpeg_version,
+        "ffmpeg_version": ffmpeg_ver,
         "python_version": sys.version.split()[0],
         "platform": f"{platform.system()} {platform.release()} {platform.machine()}",
         "matrix_sha256": matrix_sha,

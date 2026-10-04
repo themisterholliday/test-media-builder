@@ -8,11 +8,8 @@ externals are included with status="pending_external".
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import logging
-import re
-import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path

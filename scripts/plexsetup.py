@@ -163,7 +163,6 @@ def save_server_token(base: str) -> int:
     A claimed server rejects unauthenticated calls, which is what allows
     ALLOWED_NETWORKS to stay empty instead of opening the API to the whole LAN.
     """
-    token = ET.fromstring(_request(f"{base}/")).get("machineIdentifier")
     import subprocess
     pref = ("/config/Library/Application Support/Plex Media Server/Preferences.xml")
     try:
@@ -189,7 +188,18 @@ def report_status(base: str) -> int:
     except UnsafePlexTarget as e:
         print(f"  {e}")
         return 2
-    root = ET.fromstring(_request(f"{base}/"))
+    try:
+        root = ET.fromstring(_request(f"{base}/"))
+    except RuntimeError as e:
+        # A claimed server with no stored token answers 401. That is exactly the
+        # state someone runs this command to understand, so say so rather than
+        # raising.
+        print(f"  url        : {base}")
+        print(f"  machine id : {identity['machine_identifier'][:12]}...")
+        print(f"  claimed    : {'yes' if identity['claimed'] == '1' else 'no'}")
+        print(f"  error      : {e}")
+        print("               run 'make plex-token' to store the server's token")
+        return 2
     pin = read_pin()
     machine = identity["machine_identifier"]
     claimed = identity["claimed"] == "1"
@@ -206,7 +216,11 @@ def report_status(base: str) -> int:
         print(f"  pinned     : NO — pin is {pin[:12]}..., writes here are refused")
     else:
         print("  pinned     : not set — run 'make plex-setup' to pin this server")
-    sections = ET.fromstring(_request(f"{base}/library/sections")).findall(".//Directory")
+    try:
+        sections = ET.fromstring(_request(f"{base}/library/sections")).findall(".//Directory")
+    except RuntimeError as e:
+        print(f"  libraries  : could not read ({e})")
+        return 2
     print(f"  libraries  : {len(sections)}")
     for d in sections:
         print(f"      [{d.get('key')}] {d.get('title')}")
@@ -309,15 +323,20 @@ def main(argv: list[str] | None = None) -> int:
     # Creating sections on the wrong server leaves libraries a person must delete by
     # hand, so confirm the target is the disposable container first. A claim is a
     # deliberate act and stays exempt.
-    if not ns.claim:
-        try:
-            # plexsetup writes the pin, so a stale pin must not lock it out of a
-            # freshly recreated container. An unclaimed server is accepted here.
-            require_test_server(ns.plex, allow_claimed=ns.allow_claimed_server,
-                                unclaimed_is_enough=True)
-        except UnsafePlexTarget as e:
-            log.error("%s", e)
-            return 2
+    # Runs for --claim too. Skipping it there still reached write_pin,
+    # set_friendly_name and advertise_lan_address below, so `make plex-claim`
+    # aimed at a real server would rename it, overwrite its advertised address,
+    # and record it as the sanctioned write target for every later run.
+    #
+    # There is no bootstrap problem: the guard runs before the claim, when the
+    # server is still unclaimed, and `unclaimed_is_enough` accepts that. A server
+    # that is already claimed and not pinned is refused, which is the point.
+    try:
+        require_test_server(ns.plex, allow_claimed=ns.allow_claimed_server,
+                            unclaimed_is_enough=True)
+    except UnsafePlexTarget as e:
+        log.error("%s", e)
+        return 2
 
     # Pin this server as the test container before anything is created on it. The
     # pin is what lets the write guard keep working after the server is claimed,
@@ -336,6 +355,11 @@ def main(argv: list[str] | None = None) -> int:
             except RuntimeError as e:
                 log.error("claim failed (tokens expire after ~4 minutes): %s", e)
                 return 2
+            # A claimed server rejects unauthenticated calls, so everything below
+            # this point needs a token. Store it now rather than making the person
+            # run a second command that cannot itself authenticate.
+            if not plex_token():
+                save_server_token(ns.plex)
     elif not is_claimed(ns.plex):
         log.info("server is unclaimed: reachable over the local API, but Plex apps will not "
                  "find it. Pass --claim with a token from https://plex.tv/claim to change that.")

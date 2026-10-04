@@ -763,8 +763,6 @@ def _edge_missing_metadata(variant: dict, defaults: dict, sources_dir: Path, out
 
 # These differ from a standard build only in metadata or a post-encode step, so the
 # encode itself is build_video. rotation is stamped afterwards by generate.py.
-plain = {"low_bitrate", "high_bitrate", "avcc", "edit_list",
-         "rotation", "aspect_conflict", "av_desync"}
 
 
 def _edge_plain_build(variant: dict, defaults: dict, sources_dir: Path, output_path: Path,

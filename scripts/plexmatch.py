@@ -324,6 +324,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--allow-claimed-server", action="store_true",
                    help="Permit label writes to a claimed (real) Plex server.")
     p.add_argument("--all", action="store_true", help="Print every row, not a sample.")
+    p.add_argument("--strict", action="store_true",
+                   help="Also exit non-zero when any variant is unmatched.")
     p.add_argument("-v", "--verbose", action="store_true")
     a = p.parse_args(argv)
     a.token = a.token or plex_token()
@@ -368,7 +370,15 @@ def main(argv: list[str] | None = None) -> int:
         _write_json(Path(a.json_out), a.plex, a.token, matches, unmatched, stray)
         print(f"wrote {a.json_out}")
 
-    return 0 if not unmatched else 1
+    # A Plex item with no variant is the failure worth reporting: the library and
+    # the server disagree about something that is actually there. Unmatched
+    # variants are mostly expected and are listed in the report -- pending
+    # external slots, stream directories the library excludes, subtitle sidecars,
+    # and containers no scanner indexes. Failing on those made `make plexmatch`
+    # exit non-zero on every healthy run, which trains people to ignore it.
+    if stray:
+        return 1
+    return 1 if (a.strict and unmatched) else 0
 
 
 def _write_json(path: Path, base: str, token: str | None, matches: list[Match],

@@ -15,4 +15,9 @@ sources/external/*
 sources/images/*
 !sources/images/.gitkeep
 sources/.slideshow_cycle.mov
+# Netflix Open Content masters and the audio salvaged from them: hundreds of MB,
+# re-fetchable, never part of a commit.
+sources/masters/
 .build-cache/
+docker/.env
+docker/.testlib-server-id

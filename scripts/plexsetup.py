@@ -21,6 +21,8 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
+import re
 import sys
 import time
 import urllib.error
@@ -28,9 +30,16 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 
+from .plexsafety import (UnsafePlexTarget, plex_token, read_pin, require_test_server, save_token,
+                         server_identity, write_pin)
+
 log = logging.getLogger("plexsetup")
 
-DEFAULT_PLEX = "http://localhost:32401"
+DOCKER = os.environ.get("DOCKER", "/Applications/Docker.app/Contents/Resources/bin/docker")
+DEFAULT_PLEX = "http://localhost:32402"
+# Deliberately unmistakable: a claimed test server sits in the account's server
+# list next to the person's real one.
+DEFAULT_SERVER_NAME = "TESTLIB (disposable test library)"
 
 # (title, container path, plex type, agent, scanner)
 #
@@ -45,7 +54,14 @@ LIBRARIES = [
 
 
 def _request(url: str, method: str = "GET", timeout: int = 120) -> bytes:
-    request = urllib.request.Request(url, method=method)
+    """Call the Plex API, authenticating when a token is configured.
+
+    Every request in this module goes through here, so a claimed server works
+    without granting the LAN unauthenticated access through ALLOWED_NETWORKS.
+    """
+    token = plex_token()
+    headers = {"X-Plex-Token": token} if token else {}
+    request = urllib.request.Request(url, method=method, headers=headers)
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
             return response.read()
@@ -87,6 +103,127 @@ def claim(base: str, token: str) -> None:
     """
     _request(f"{base}/myplex/claim?token={urllib.parse.quote(token)}", method="POST")
     log.info("server claimed")
+
+
+def host_lan_address() -> str | None:
+    """Return this machine's LAN IP, or None when it cannot be determined.
+
+    Opens a UDP socket to a routable address and reads back the local end. No
+    packet is sent; it just asks the routing table which interface would be used,
+    which beats parsing `ifconfig` across platforms.
+    """
+    import socket
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        sock.connect(("8.8.8.8", 80))
+        address = sock.getsockname()[0]
+    except OSError:
+        return None
+    finally:
+        sock.close()
+    return address if not address.startswith("127.") else None
+
+
+def advertise_lan_address(base: str) -> None:
+    """Tell Plex which address to advertise to apps.
+
+    Inside a container Plex only sees the Docker NAT address, so it advertises
+    something like `172.22.0.2:32400` that no device on the LAN can reach, and apps
+    show the server as offline. `customConnections` adds the host address and the
+    published port alongside it. The bogus NAT entry remains but fails immediately,
+    so clients fall through to this one.
+    """
+    address = host_lan_address()
+    if not address:
+        log.warning("could not determine a LAN address; apps may show the server offline")
+        return
+    port = urllib.parse.urlsplit(base).port or 32400
+    uri = f"http://{address}:{port}"
+    try:
+        current = ET.fromstring(_request(f"{base}/:/prefs"))
+    except RuntimeError as e:
+        log.warning("could not read prefs to set the advertised address: %s", e)
+        return
+    existing = next((x.get("value") for x in current.findall(".//Setting")
+                     if x.get("id") == "customConnections"), "")
+    if existing == uri:
+        log.info("advertised address already %s", uri)
+        return
+    try:
+        _request(f"{base}/:/prefs?{urllib.parse.urlencode({'customConnections': uri})}",
+                 method="PUT")
+        log.info("advertising %s to Plex apps", uri)
+    except RuntimeError as e:
+        log.warning("could not set the advertised address: %s", e)
+
+
+def save_server_token(base: str) -> int:
+    """Copy the claimed server's own token into docker/.env.
+
+    A claimed server rejects unauthenticated calls, which is what allows
+    ALLOWED_NETWORKS to stay empty instead of opening the API to the whole LAN.
+    """
+    token = ET.fromstring(_request(f"{base}/")).get("machineIdentifier")
+    import subprocess
+    pref = ("/config/Library/Application Support/Plex Media Server/Preferences.xml")
+    try:
+        out = subprocess.run(
+            [DOCKER, "exec", "testlib-plex", "sh", "-c", f'cat "{pref}"'],
+            capture_output=True, text=True, timeout=60).stdout
+    except (OSError, subprocess.SubprocessError) as e:
+        log.error("could not read the server config: %s", e)
+        return 2
+    m = re.search(r'PlexOnlineToken="([^"]+)"', out)
+    if not m:
+        log.error("no PlexOnlineToken in the server config -- claim it first: "
+                  "make plex-claim TOKEN=claim-xxxx")
+        return 2
+    save_token(m.group(1))
+    return 0
+
+
+def report_status(base: str) -> int:
+    """Print which server answers and whether it is this project's test container."""
+    try:
+        identity = server_identity(base)
+    except UnsafePlexTarget as e:
+        print(f"  {e}")
+        return 2
+    root = ET.fromstring(_request(f"{base}/"))
+    pin = read_pin()
+    machine = identity["machine_identifier"]
+    claimed = identity["claimed"] == "1"
+
+    print(f"  url        : {base}")
+    print(f"  name       : {root.get('friendlyName')}")
+    print(f"  machine id : {machine[:12]}...")
+    print(f"  claimed    : {'yes' if claimed else 'no'}"
+          f"{'' if claimed else '   (run: make plex-claim TOKEN=claim-xxxx)'}")
+    print(f"  plex pass  : {'yes' if root.get('myPlexSubscription') == '1' else 'no'}")
+    if pin and machine == pin:
+        print("  pinned     : yes — writes to this server are allowed")
+    elif pin:
+        print(f"  pinned     : NO — pin is {pin[:12]}..., writes here are refused")
+    else:
+        print("  pinned     : not set — run 'make plex-setup' to pin this server")
+    sections = ET.fromstring(_request(f"{base}/library/sections")).findall(".//Directory")
+    print(f"  libraries  : {len(sections)}")
+    for d in sections:
+        print(f"      [{d.get('key')}] {d.get('title')}")
+    return 0
+
+
+def set_friendly_name(base: str, name: str) -> None:
+    """Name the server so it cannot be mistaken for a real one in a Plex account.
+
+    Once the container is claimed it appears in the account's server list beside
+    the person's own server. A blunt name is the cheapest way to keep them apart.
+    """
+    try:
+        _request(f"{base}/:/prefs?{urllib.parse.urlencode({'FriendlyName': name})}", method="PUT")
+        log.info("server name set to %r", name)
+    except RuntimeError as e:
+        log.warning("could not set the server name: %s", e)
 
 
 def existing_sections(base: str) -> dict[str, str]:
@@ -135,6 +272,14 @@ def section_counts(base: str) -> dict[str, int]:
 def _parse_args(argv: list[str]) -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Set up Plex libraries for the test media library.")
     p.add_argument("--plex", default=DEFAULT_PLEX, help="Plex base URL.")
+    p.add_argument("--allow-claimed-server", action="store_true",
+                   help="Permit library creation on a claimed (real) Plex server.")
+    p.add_argument("--name", default=DEFAULT_SERVER_NAME,
+                   help="Friendly name for the test server.")
+    p.add_argument("--save-token", action="store_true",
+                   help="Read the server's own token from its config into docker/.env.")
+    p.add_argument("--status", action="store_true",
+                   help="Report the target server and exit without changing anything.")
     p.add_argument("--claim", default="", metavar="TOKEN",
                    help="Claim token from https://plex.tv/claim, to use the server from Plex apps.")
     p.add_argument("--no-scan", action="store_true", help="Create the libraries but do not scan.")
@@ -154,6 +299,33 @@ def main(argv: list[str] | None = None) -> int:
     except RuntimeError as e:
         log.error("%s — is the stack up? try 'make servers'", e)
         return 2
+
+    if ns.save_token:
+        return save_server_token(ns.plex)
+
+    if ns.status:
+        return report_status(ns.plex)
+
+    # Creating sections on the wrong server leaves libraries a person must delete by
+    # hand, so confirm the target is the disposable container first. A claim is a
+    # deliberate act and stays exempt.
+    if not ns.claim:
+        try:
+            # plexsetup writes the pin, so a stale pin must not lock it out of a
+            # freshly recreated container. An unclaimed server is accepted here.
+            require_test_server(ns.plex, allow_claimed=ns.allow_claimed_server,
+                                unclaimed_is_enough=True)
+        except UnsafePlexTarget as e:
+            log.error("%s", e)
+            return 2
+
+    # Pin this server as the test container before anything is created on it. The
+    # pin is what lets the write guard keep working after the server is claimed,
+    # when `claimed="0"` no longer distinguishes it from a real library.
+    identity = server_identity(ns.plex)
+    write_pin(identity["machine_identifier"])
+    set_friendly_name(ns.plex, ns.name)
+    advertise_lan_address(ns.plex)
 
     if ns.claim:
         if is_claimed(ns.plex):

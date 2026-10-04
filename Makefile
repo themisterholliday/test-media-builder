@@ -2,7 +2,7 @@ PY ?= python3
 ROOT := $(shell pwd)
 JOBS ?= 1
 
-.PHONY: help bootstrap generate check clean clean-generated dry-run force rebuild verify manifest thumbs library servers servers-down servers-reset plex-setup servercheck all
+.PHONY: help bootstrap generate check clean clean-generated dry-run force rebuild verify manifest thumbs library ids catalog plexmatch servers servers-down servers-reset plex-reset-library plex-claim plex-token plex-status plex-setup servercheck all
 
 help:
 	@echo "Targets:"
@@ -18,7 +18,14 @@ help:
 	@echo "  library         build the faceted show tree under library/ (run after generate)"
 	@echo "  servers         start Plex + Jellyfin in docker against library/ (read-only)"
 	@echo "  servercheck     diff what each server scanned against generated/manifest.json"
-	@echo "  plex-setup      create the three Plex libraries (CLAIM=<token> to use Plex apps)"
+	@echo "  ids             mint UUIDs for variants added to the matrix by hand"
+	@echo "  catalog         regenerate docs/CATALOG.md from the matrix"
+	@echo "  plexmatch       join manifest variants to a Plex library (WRITE_LABELS=1 to stamp)"
+	@echo "  plex-reset-library  wipe the Plex library but keep the claim"
+	@echo "  plex-claim      claim the test server (make plex-claim TOKEN=claim-xxxx)"
+	@echo "  plex-token      store the server token in docker/.env (after claiming)"
+	@echo "  plex-status     show which server answers, and whether it is claimed"
+	@echo "  plex-setup      create the three Plex libraries and scan"
 	@echo "  servers-down    stop the servers, keeping their config"
 	@echo "  servers-reset   stop and wipe all server config"
 	@echo "  all             generate + verify + manifest + thumbs + library"
@@ -61,7 +68,7 @@ COMPOSE := $(DOCKER) compose -f docker/compose.yml
 
 servers:
 	$(COMPOSE) up -d
-	@echo "plex:     http://localhost:$${PLEX_PORT:-32401}"
+	@echo "plex:     http://localhost:$${PLEX_PORT:-32402}"
 	@echo "jellyfin: http://localhost:$${JELLYFIN_PORT:-8096}"
 	@echo "run 'make servercheck' once both have finished scanning"
 
@@ -70,13 +77,63 @@ servers-down:
 
 servers-reset:
 	$(COMPOSE) down -v
-	rm -rf docker/config/plex docker/config/jellyfin
+
+# Wipe the Plex library but keep Preferences.xml, which holds the claim and the
+# machine identifier the write guard is pinned to. Use this instead of
+# servers-reset once the server is claimed: a reset needs a fresh claim token,
+# this does not.
+PLEX_CFG = /config/Library/Application Support/Plex Media Server
+plex-reset-library:
+	$(COMPOSE) stop plex
+	$(DOCKER) run --rm -v testlib_plex-config:/config alpine:latest sh -c \
+	  'rm -rf "$(PLEX_CFG)/Plug-in Support/Databases" "$(PLEX_CFG)/Media" "$(PLEX_CFG)/Metadata"'
+	$(COMPOSE) start plex
+	@echo "library wiped, claim kept — now run 'make plex-setup'"
+
+# Claim the running test server to a Plex account:
+#   make plex-claim TOKEN=claim-xxxxxxxx
+# Get the token from https://plex.tv/claim. It expires about four minutes after it
+# is issued, so fetch it immediately before running this. Works against a running
+# server, so no reset is needed and a retry costs nothing.
+plex-claim:
+ifndef TOKEN
+	@echo "usage: make plex-claim TOKEN=claim-xxxxxxxx"
+	@echo "get a token from https://plex.tv/claim (expires in ~4 minutes)"
+	@exit 1
+endif
+	@case "$(TOKEN)" in claim-*) ;; \
+	  *) echo "'$(TOKEN)' is not a claim token (expected it to start with 'claim-')"; exit 1 ;; esac
+	$(PY) -m scripts.plexsetup --claim "$(TOKEN)" --no-scan
+
+# Report which server answers, whether it is claimed, and whether it is the pinned
+# test container. Read-only.
+# Store the claimed server's own token in docker/.env (gitignored). With a token the
+# API needs no ALLOWED_NETWORKS, so the LAN gets no unauthenticated access.
+plex-token:
+	$(PY) -m scripts.plexsetup --save-token
+
+plex-status:
+	@$(PY) -m scripts.plexsetup --status
 
 plex-setup:
-	$(PY) -m scripts.plexsetup $(if $(CLAIM),--claim $(CLAIM))
+	$(PY) -m scripts.plexsetup $(if $(CLAIM),--claim $(CLAIM)) $(if $(NAME),--name '$(NAME)')
 
 servercheck:
 	$(PY) -m scripts.servercheck
+
+# Mint a UUID for any variant added to the matrix by hand. Existing ids are never
+# changed. Everything downstream refuses to run until every variant has one.
+ids:
+	$(PY) -m scripts.ids
+
+catalog:
+	$(PY) -m scripts.catalog
+
+plexmatch:
+	$(PY) -m scripts.plexmatch \
+		$(if $(WRITE_LABELS),--write-labels) \
+		$(if $(ALL),--all) \
+		$(if $(JSON),--json $(JSON))
 
 all: generate verify manifest thumbs library
 

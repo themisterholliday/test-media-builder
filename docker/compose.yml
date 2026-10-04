@@ -4,10 +4,14 @@
 # into the generated tree, and coping with a read-only source is itself part of
 # what is being tested.
 #
-# Config lives in bind-mounted directories under docker/config/, so a claimed server,
-# its libraries and its settings survive `docker compose down`. Use `make servers-reset`
-# to wipe them and start clean; the validation harness wants that, an app-facing server
-# does not.
+# Config lives in NAMED VOLUMES, not bind mounts. Both servers keep their catalogue in
+# SQLite, and SQLite on a macOS bind mount through Docker Desktop's file sharing does not
+# get working POSIX locks: the database corrupts, and the first symptom is an HTTP 500
+# from a library listing. A named volume lives inside the Linux VM, where locking works.
+#
+# The volumes survive `docker compose down`, so a claimed server keeps its libraries and
+# settings. `make servers-reset` removes them; `make plex-reset-library` clears the
+# library while keeping the claim.
 
 name: testlib
 
@@ -17,17 +21,26 @@ services:
     container_name: testlib-plex
     environment:
       TZ: ${TZ:-America/Denver}
-      # Unclaimed server: allow the local Docker networks to use the API without
-      # a plex.tv token, which keeps the whole check headless.
-      ALLOWED_NETWORKS: 10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
+      # ALLOWED_NETWORKS is deliberately NOT set. It grants unauthenticated access
+      # to the whole API — including /:/prefs and media deletion — to every address
+      # in the listed ranges, which on a published port means the entire LAN. Once
+      # the server is claimed the tooling authenticates with PLEX_TOKEN instead
+      # (`make plex-token`), and Plex apps authenticate through your account.
+      # Set it only for an unclaimed throwaway server, and then to a single subnet.
+      ALLOWED_NETWORKS: ${ALLOWED_NETWORKS:-}
       PLEX_UID: ${PLEX_UID:-1000}
       PLEX_GID: ${PLEX_GID:-1000}
+      # Claim the server to a Plex account on FIRST BOOT only, so Plex apps can
+      # find it and account-level features such as Plex Pass apply. Get a token
+      # from https://plex.tv/claim and put it in docker/.env; it expires after
+      # about four minutes. Leave empty to stay unclaimed.
+      PLEX_CLAIM: ${PLEX_CLAIM:-}
     ports:
       # 32400 is left alone: a native Plex Media Server may already own it on the
       # host, and this stack must never interfere with a real library.
-      - "${PLEX_PORT:-32401}:32400"
+      - "${PLEX_PORT:-32402}:32400"
     volumes:
-      - ./config/plex:/config
+      - plex-config:/config
       - plex-transcode:/transcode
       - ../library:/media:ro
     healthcheck:
@@ -45,7 +58,7 @@ services:
     ports:
       - "${JELLYFIN_PORT:-8096}:8096"
     volumes:
-      - ./config/jellyfin:/config
+      - jellyfin-config:/config
       - jellyfin-cache:/cache
       - ../library:/media:ro
     healthcheck:
@@ -56,5 +69,7 @@ services:
       start_period: 20s
 
 volumes:
+  plex-config:
   plex-transcode:
+  jellyfin-config:
   jellyfin-cache:

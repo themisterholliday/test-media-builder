@@ -29,6 +29,7 @@ from pathlib import Path
 from .ffutil import require_binaries
 from .generate import CONFIG_PATH, GENERATED_DIR, ROOT, _load_config
 from .ffutil import FFExecError
+from .ids import decorate_filename
 from .nfo_writer import build_episode_nfo, build_tvshow_nfo, write_nfo
 from .thumbnails import tile_images
 
@@ -315,8 +316,16 @@ def _is_current(src: Path, dst: Path, mode: str) -> bool:
         return False
 
 
-def _episode_basename(show_title: str, episode: int, variant_name: str) -> str:
-    return f"{_safe_name(show_title)} - S01E{episode:02d} - {_safe_name(variant_name)}"
+def _episode_basename(show_title: str, episode: int, variant_name: str,
+                      variant_uuid: str | None = None) -> str:
+    """Name an episode file, ending in the short id so the file identifies itself.
+
+    The id is the join key a media server hands back: Plex will not index a UUID for
+    searching and drops embedded tags outside the MP4 family, so the path is the only
+    channel that survives every container.
+    """
+    stem = f"{_safe_name(show_title)} - S01E{episode:02d} - {_safe_name(variant_name)}"
+    return decorate_filename(stem, variant_uuid) if variant_uuid else stem
 
 
 def build_library(
@@ -365,7 +374,8 @@ def build_library(
             if not src.exists():
                 log.warning("skip %s: source missing (%s)", entry["name"], src)
                 continue
-            base = _episode_basename(show["title"], episode, entry["name"])
+            base = _episode_basename(show["title"], episode, entry["name"],
+                                     entry.get("uuid"))
             dst = season_dir / f"{base}{src.suffix}"
             counts[_link_file(src, dst, link_mode)] += 1
             created.add(str(dst.relative_to(library_dir)))
@@ -376,6 +386,8 @@ def build_library(
                 season=1,
                 episode=episode,
                 variant_id=entry["name"],
+                variant_uuid=entry.get("uuid"),
+                attribution=entry.get("attribution"),
                 title=entry.get("title") or entry["name"],
                 description=entry.get("description", ""),
                 tags=[entry["name"], *(entry.get("flags") or [])],
@@ -407,8 +419,16 @@ def build_library(
             except FFExecError as e:
                 log.warning("poster failed for %s: %s", show["title"], e)
 
+    # `counts` is a running total across every tree, so take the episode figure
+    # before the flat and audio trees add to it. Reporting the final total as
+    # "episodes" overstated it by roughly a third.
+    episodes = counts["linked"] + counts["relinked"] + counts["current"]
+
     build_flat_tree(entries_by_name, library_dir, link_mode, created, counts)
+    flat = counts["linked"] + counts["relinked"] + counts["current"] - episodes
+
     build_audio_tree(entries_by_name, library_dir, link_mode, created, counts)
+    audio = counts["linked"] + counts["relinked"] + counts["current"] - episodes - flat
 
     removed = _prune(library_dir, previous - created)
     state_path.parent.mkdir(parents=True, exist_ok=True)
@@ -417,7 +437,9 @@ def build_library(
 
     return {
         "shows": len(shows),
-        "episodes": counts["linked"] + counts["relinked"] + counts["current"],
+        "episodes": episodes,
+        "flat": flat,
+        "audio": audio,
         **counts,
         "removed": removed,
     }
@@ -440,7 +462,10 @@ def build_flat_tree(entries: dict, library_dir: Path, link_mode: str,
             continue
         # Audio-only variants are included too: Plex Music refuses tracks in MKV or raw
         # EAC3, so a video-files library is the only route to the surround formats.
-        dst = flat_dir / f"{_safe_name(name)}{src.suffix}"
+        stem = _safe_name(name)
+        if entry.get("uuid"):
+            stem = decorate_filename(stem, entry["uuid"])
+        dst = flat_dir / f"{stem}{src.suffix}"
         counts[_link_file(src, dst, link_mode)] += 1
         created.add(str(dst.relative_to(library_dir)))
         _link_thumb(name, dst.with_suffix(""), library_dir, link_mode, created)
@@ -463,7 +488,10 @@ def build_audio_tree(entries: dict, library_dir: Path, link_mode: str,
         codec = ((entry.get("audio_tracks") or [{}])[0].get("codec") or "unknown").upper()
         album_dir = library_dir / AUDIO_ROOT / _safe_name(f"{codec} Audio") / _safe_name(ALBUM_NAME)
         album_dir.mkdir(parents=True, exist_ok=True)
-        dst = album_dir / f"{_safe_name(name)}{src.suffix}"
+        stem = _safe_name(name)
+        if entry.get("uuid"):
+            stem = decorate_filename(stem, entry["uuid"])
+        dst = album_dir / f"{stem}{src.suffix}"
         counts[_link_file(src, dst, link_mode)] += 1
         created.add(str(dst.relative_to(library_dir)))
 
@@ -547,7 +575,8 @@ def main(argv: list[str] | None = None) -> int:
         no_posters=ns.no_posters,
     )
     sys.stdout.write(
-        f"library: {summary['shows']} shows, {summary['episodes']} episodes "
+        f"library: {summary['shows']} shows, {summary['episodes']} episodes, "
+        f"{summary['flat']} flat, {summary['audio']} audio "
         f"({summary['linked']} new, {summary['relinked']} relinked, "
         f"{summary['current']} unchanged, {summary['removed']} pruned)\n"
     )

@@ -14,6 +14,7 @@ from xml.dom import minidom
 from xml.etree import ElementTree as ET
 
 from .ffutil import bit_depth_for
+from .ids import mint, short
 
 log = logging.getLogger("nfo")
 
@@ -106,6 +107,8 @@ def add_streamdetails(root: ET.Element, probe: dict) -> None:
 def build_nfo(
     *,
     variant_id: str,
+    variant_uuid: str | None = None,
+    attribution: str | None = None,
     title: str,
     description: str,
     tags: Iterable[str],
@@ -135,9 +138,14 @@ def build_nfo(
         _sub(root, key, value)
     _sub(root, "plot", description)
     _sub(root, "outline", description)
-    uid = _sub(root, "uniqueid", variant_id)
+    # The UUID is the identifier external systems record, so it is the default one.
+    # The matrix name rides along because it is what a person reads in a bug report.
+    resolved_uuid = variant_uuid or mint(variant_id)
+    uid = _sub(root, "uniqueid", resolved_uuid)
     uid.set("type", "testlib")
     uid.set("default", "true")
+    name_uid = _sub(root, "uniqueid", variant_id)
+    name_uid.set("type", "testlib-name")
 
     for tag in tags:
         _sub(root, "tag", tag)
@@ -159,6 +167,10 @@ def build_nfo(
     ext = ET.SubElement(root, f"{{{TESTLIB_NS}}}testlib")
 
     _sub(ext, "id", variant_id)
+    _sub(ext, "uuid", resolved_uuid)
+    _sub(ext, "uuid_short", short(resolved_uuid))
+    if attribution:
+        _sub(ext, "attribution", attribution)
     _sub(ext, "generator", generator or ("ffmpeg" if ffmpeg_cmd else "external"))
     _sub(ext, "ffmpeg_version", ffmpeg_version)
     if ffmpeg_cmd is not None:

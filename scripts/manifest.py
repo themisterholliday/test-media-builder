@@ -19,6 +19,7 @@ from pathlib import Path
 
 from .bootstrap import image_set_fingerprint, list_source_images
 from .ffutil import bit_depth_for, ffmpeg_bin, require_binaries
+from .ids import mint, short
 from .generate import (
     CONFIG_PATH,
     GENERATED_DIR,
@@ -99,8 +100,11 @@ def _entry_for(plan, probe: dict | None) -> dict:
     target = _probe_target(plan)
     exists = target.exists() and (target.is_file() and target.stat().st_size > 0 or target.is_dir())
 
+    variant_uuid = v.get("uuid") or mint(v["name"])
     out: dict = {
         "name": v["name"],
+        "uuid": variant_uuid,
+        "uuid_short": short(variant_uuid),
         "section": plan.section,
         "title": v.get("title", v["name"]),
         "description": v.get("description", ""),
@@ -110,6 +114,10 @@ def _entry_for(plan, probe: dict | None) -> dict:
         "status": "built" if exists else "missing",
         "overlay": _overlay_record(plan, _OVERLAY_SETTINGS),
     }
+    # Licence attribution must travel with the work, so it is copied wherever the
+    # asset is described rather than living only in the matrix.
+    if v.get("attribution"):
+        out["attribution"] = v["attribution"]
     if plan.section == "external" and not exists:
         out["status"] = "pending_external"
         out["source_path"] = v.get("source_path")

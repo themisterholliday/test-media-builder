@@ -25,14 +25,17 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
+from datetime import datetime, timezone
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from .generate import GENERATED_DIR, ROOT
+from .ids import SHORT_RE, short, short_from_path
+from .plexsafety import plex_token
 
 log = logging.getLogger("servercheck")
 
-DEFAULT_PLEX = "http://localhost:32401"
+DEFAULT_PLEX = "http://localhost:32402"
 DEFAULT_JELLYFIN = "http://localhost:8096"
 LIBRARY_DIR = ROOT / "library"
 
@@ -64,32 +67,60 @@ def _get(url: str, headers: dict | None = None, timeout: int = 60) -> bytes:
         raise RuntimeError(f"request failed: {url}: {e}") from e
 
 
-def variant_from_path(path: str) -> str | None:
-    """Recover the variant name from a library episode path.
+# Maps a short id to its variant name. Populated from the manifest by
+# `index_variant_ids`, so the join works even when a server rewrites a title.
+_SHORT_TO_NAME: dict[str, str] = {}
 
-    Episodes are named "<Show> - S01E01 - <variant>.<ext>", so the variant is the
-    last hyphen-separated field of the stem. That is the join key back to the
-    manifest.
+
+def index_variant_ids(manifest: dict) -> int:
+    """Teach `variant_from_path` the short id of every variant. Returns how many."""
+    _SHORT_TO_NAME.clear()
+    for entry in manifest.get("entries", []) or []:
+        value = entry.get("uuid")
+        if value:
+            _SHORT_TO_NAME[short(value)] = entry["name"]
+    return len(_SHORT_TO_NAME)
+
+
+def variant_from_path(path: str) -> str | None:
+    """Recover the variant name from a library path.
+
+    Prefers the short id the library writes into every filename, because that
+    survives a rename and is unambiguous. Falls back to the older convention,
+    "<Show> - S01E01 - <variant>.<ext>", so a library built before ids still joins.
     """
     stem = Path(path).stem
+    short_id = short_from_path(stem)
+    if short_id:
+        name = _SHORT_TO_NAME.get(short_id)
+        if name:
+            return name
+        log.debug("path carries unknown short id %s: %s", short_id, path)
+    stem = SHORT_RE.sub("", stem).strip()
     if " - " not in stem:
-        return None
+        return stem or None
     return stem.rsplit(" - ", 1)[-1]
 
 
 # --------------------------------------------------------------------------- Plex
 
+def _plex_headers() -> dict:
+    """Auth header for Plex, empty when no token is configured."""
+    token = plex_token()
+    return {"X-Plex-Token": token} if token else {}
+
+
 def plex_inventory(base: str) -> dict[str, ServerItem]:
     """Return every episode Plex holds, keyed by variant name."""
-    sections = ET.fromstring(_get(f"{base}/library/sections"))
+    sections = ET.fromstring(_get(f"{base}/library/sections", _plex_headers()))
     items: dict[str, ServerItem] = {}
     for directory in sections.findall(".//Directory"):
         key = directory.get("key")
-        body = _get(f"{base}/library/sections/{key}/all?type=4")
+        body = _get(f"{base}/library/sections/{key}/all?type=4", _plex_headers())
         for video in ET.fromstring(body).findall(".//Video"):
             # Chapters are omitted unless explicitly requested, so without this the
             # report claims Plex found none when it read every one of them.
-            detail = ET.fromstring(_get(f"{base}{video.get('key')}?includeChapters=1"))
+            detail = ET.fromstring(_get(f"{base}{video.get('key')}?includeChapters=1", _plex_headers()))
             for node in detail.findall(".//Video"):
                 item = _plex_item(node)
                 if item:
@@ -288,6 +319,8 @@ def expected_on_disk() -> dict[str, dict]:
     directories are not part of what a server is expected to find.
     """
     manifest = json.loads((GENERATED_DIR / "manifest.json").read_text(encoding="utf-8"))
+    # Must happen before any path is resolved, or the id lookup finds an empty index.
+    index_variant_ids(manifest)
     linked = {variant_from_path(str(p)) for p in LIBRARY_DIR.rglob("*")
               if p.is_file() and p.suffix not in (".nfo", ".jpg")}
     return {e["name"]: e for e in manifest["entries"]
@@ -346,9 +379,22 @@ def compare(entry: dict, item: ServerItem, server: str = "") -> tuple[list[str],
     return issues, notes
 
 
-def build_report(expected: dict[str, dict], inventories: dict[str, dict[str, ServerItem]]) -> dict:
-    """Diff every server inventory against the manifest."""
-    report: dict = {"servers": {}, "expected_items": len(expected)}
+def build_report(expected: dict[str, dict], inventories: dict[str, dict[str, ServerItem]],
+                 targets: dict[str, str] | None = None) -> dict:
+    """Diff every server inventory against the manifest.
+
+    `_meta` records when the scan ran and which servers answered. A report read
+    without that cannot be distinguished from a stale one, and a stale report
+    claiming everything matched is worse than no report.
+    """
+    report: dict = {
+        "_meta": {
+            "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "targets": targets or {},
+        },
+        "servers": {},
+        "expected_items": len(expected),
+    }
     for server, items in inventories.items():
         missing, mismatched, tolerated, structural, notes = [], [], [], [], []
         for name, entry in sorted(expected.items()):
@@ -451,7 +497,9 @@ def main(argv: list[str] | None = None) -> int:
         log.error("no server could be reached")
         return 2
 
-    report = build_report(expected, inventories)
+    targets = {k: v for k, v in (("plex", ns.plex), ("jellyfin", ns.jellyfin))
+               if v and k in inventories}
+    report = build_report(expected, inventories, targets)
     out_path = Path(ns.output)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(report, indent=2), encoding="utf-8")

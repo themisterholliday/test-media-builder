@@ -2,7 +2,7 @@ PY ?= python3
 ROOT := $(shell pwd)
 JOBS ?= 1
 
-.PHONY: help bootstrap fetch fetch-check fetch-local generate check clean clean-generated dry-run force rebuild verify manifest thumbs library ids catalog plexmatch servers servers-down servers-reset plex-reset-library plex-claim plex-token plex-status plex-setup servercheck all
+.PHONY: help bootstrap fetch fetch-check fetch-local generate check clean clean-generated dry-run force rebuild verify manifest thumbs library ids catalog plexmatch servers servers-down servers-reset tuner tuner-down tuner-logs tuner-register plex-reset-library plex-claim plex-token plex-status plex-setup servercheck all
 
 help:
 	@echo "Targets:"
@@ -30,6 +30,10 @@ help:
 	@echo "  plex-token      store the server token in docker/.env (after claiming)"
 	@echo "  plex-status     show which server answers, and whether it is claimed"
 	@echo "  plex-setup      create the three Plex libraries and scan"
+	@echo "  tuner           start the HDHomeRun test tuner (live TV / DVR)"
+	@echo "  tuner-register  tell Plex where the tuner is, then add the DVR in the app"
+	@echo "  tuner-logs      follow the tuner request log"
+	@echo "  tuner-down      stop the tuner"
 	@echo "  servers-down    stop the servers, keeping their config"
 	@echo "  servers-reset   stop and wipe all server config"
 	@echo "  all             generate + verify + manifest + thumbs + library + catalog"
@@ -100,10 +104,31 @@ servers:
 	@echo "run 'make servercheck' once both have finished scanning"
 
 servers-down:
-	$(COMPOSE) down
+	$(COMPOSE) --profile tuner down
+
+# The tuner is off by default: it holds an ffmpeg process open per active channel.
+# It serves library/flat as live channels so the DVR and live-TV paths can be
+# exercised without real hardware. Run `make servers` first.
+TUNER_IP ?= 172.22.0.99
+tuner:
+	$(COMPOSE) --profile tuner up -d --build tuner
+	@echo "tuner: http://$(TUNER_IP):80 (inside the compose network)"
+	@echo "run 'make tuner-register' next, then add the DVR in the Plex app"
+
+# Plex does not find a tuner by UDP broadcast across a Docker bridge, so it has to
+# be told the address. The endpoint is /media/grabbers/devices -- the /discover
+# variant ignores its uri parameter and reports success regardless.
+tuner-register:
+	$(PY) -m scripts.plexsetup --register-tuner http://$(TUNER_IP):80
+
+tuner-logs:
+	$(COMPOSE) --profile tuner logs -f tuner
+
+tuner-down:
+	$(COMPOSE) --profile tuner stop tuner
 
 servers-reset:
-	$(COMPOSE) down -v
+	$(COMPOSE) --profile tuner down -v
 
 # Wipe the Plex library but keep Preferences.xml, which holds the claim and the
 # machine identifier the write guard is pinned to. Use this instead of

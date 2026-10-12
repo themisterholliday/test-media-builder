@@ -126,6 +126,29 @@ Diffs both servers against `generated/manifest.json` and writes
 missing MXF file and the unindexed audio-only variants are expected and
 explained in the output.
 
+### Test live TV and the DVR
+
+```bash
+make tuner            # build and start the HDHomeRun emulator
+make tuner-register   # tell Plex where it is
+make tuner-logs       # follow the request log while you test
+```
+
+Then in the Plex app: **Settings → Live TV & DVR → Set up Plex DVR**. The tuner
+appears as `HDHomeRun TESTLIB` with six channels taken from `library/flat`, each
+served as a looping MPEG-TS stream.
+
+The tuner is off by default — it holds an ffmpeg process open per active channel —
+and is pinned to `172.22.0.99` because Plex stores a DVR by its device URI. A tuner
+that moves between restarts leaves a dead DVR you have to delete by hand.
+
+Three things to expect. The guide comes from Plex's cloud EPG, so programme titles
+belong to whatever lineup you pick and have nothing to do with the files playing. The
+tuner reports `canTranscode=0`, so Plex direct-plays or fails rather than transcoding.
+And Plex may show the device as **dead** even while it is polling the tuner and getting
+answers — see
+[the architecture notes](docs/ARCHITECTURE.md#what-it-does-not-do) for what was measured.
+
 ### Get the variant-to-Plex join for other tooling
 
 ```bash

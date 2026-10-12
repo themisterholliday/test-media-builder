@@ -62,6 +62,10 @@ How the media test library is built, what each component does, and how to extend
   - [How the tools know which server is which](#how-the-tools-know-which-server-is-which)
   - [Claiming by accident](#claiming-by-accident)
   - [Why config lives in a Docker volume, not a bind mount](#why-config-lives-in-a-docker-volume-not-a-bind-mount)
+- [The test tuner](#the-test-tuner)
+  - [Three things that fail silently](#three-things-that-fail-silently)
+  - [Why the address is pinned](#why-the-address-is-pinned)
+  - [What it does not do](#what-it-does-not-do)
 - [FFmpeg quirks handled by the pipeline](#ffmpeg-quirks-handled-by-the-pipeline)
 ---
 
@@ -1379,6 +1383,68 @@ because it is read-only and holds no database.
 The cost: config is no longer browsable from the host. Reach it with
 `docker run --rm -v testlib_plex-config:/config alpine ls /config`, which is what
 `make plex-reset-library` does.
+
+---
+
+
+## The test tuner
+
+`docker/tuner/tuner.py` emulates an HDHomeRun so the live-TV and DVR paths can be
+exercised without hardware. It publishes the first N files of `library/flat` as
+channels and streams each one as a looping MPEG-TS, which is what a live tuner looks
+like from the outside.
+
+It is a compose profile, not a default service: each active channel holds an ffmpeg
+process open, and most runs do not need it.
+
+```bash
+make tuner            # build and start it
+make tuner-register   # tell Plex the address
+make tuner-logs       # follow the request log
+```
+
+### Three things that fail silently
+
+**The device id must pass a checksum.** `hdhomerun_discover_validate_device_id()`
+rejects an invalid id, and Plex drops the device without logging anything. A plausible
+id such as `0x12345678` fails it. `DEVICE_ID = 0x1010001F` passes.
+
+**Registration is `POST /media/grabbers/devices?uri=...`.** There is a
+`/media/grabbers/devices/discover` endpoint that accepts the same `uri` parameter,
+ignores it, and reports success. It looks like the right one and is not.
+
+**UDP discovery does not cross a Docker bridge.** Plex broadcasts on UDP/65001 and
+waits for a reply. The tuner answers those broadcasts with correct TLV framing and a
+little-endian CRC-32, which works on a flat network, but between containers the direct
+registration above is the route that actually works.
+
+### Why the address is pinned
+
+Plex stores a DVR by its device URI. If the tuner comes back on a different address the
+DVR does not follow it: the device goes `dead` and has to be deleted and re-added by
+hand, losing the channel mapping. The compose network therefore declares the subnet it
+was already using, and the tuner takes a fixed address inside it. `TUNER_IP` and
+`TESTLIB_SUBNET` override both together.
+
+### What it does not do
+
+There is no XMLTV guide. Plex takes the programme guide from its cloud EPG provider,
+chosen during DVR setup, so guide entries describe whatever real lineup was picked and
+have no relationship to the files that play. That is harmless for testing tuning,
+recording and playback, and it is the reason channel 1 claims to be a DIRECTV channel
+while playing `aspect_anamorphic_dvcpro`.
+
+The container also reports `canTranscode="0"`, so Plex direct-plays a channel or fails.
+
+**Plex reports the device as `dead` even while it is polling the tuner successfully.**
+This is measured, not inferred: the tuner log shows repeated `200` replies to
+`/discover.json` and `/lineup_status.json` from the Plex container, and a direct fetch
+of `/auto/v1` from inside that container returns 12 MB of valid MPEG-TS, sync byte and
+all. The stored DVR record still carries `status="dead"` with a `lastSeenAt` days old,
+and a `reloadGuide` does not refresh it. The likely cause is that Plex tracks tuner
+liveness from HDHomeRun discovery replies rather than from the HTTP endpoints, and
+those are UDP broadcasts that do not cross the bridge. Unconfirmed. What is confirmed
+is that every HTTP path a tuner exposes works, and that Plex uses them.
 
 ---
 

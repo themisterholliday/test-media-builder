@@ -105,6 +105,50 @@ def claim(base: str, token: str) -> None:
     log.info("server claimed")
 
 
+def register_tuner(base: str, uri: str) -> int:
+    """Tell Plex where a tuner lives. Returns a process exit code.
+
+    Plex finds a tuner by broadcasting on UDP/65001 and waiting for a reply, which
+    does not cross a Docker bridge network. The direct route is the reliable one.
+
+    The endpoint is `/media/grabbers/devices`. The `/media/grabbers/devices/discover`
+    variant looks like the right one and accepts the same `uri` parameter, but it
+    ignores it and reports success regardless, which costs a long time to notice.
+    """
+    parsed = urllib.parse.urlsplit(uri)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        log.error("'%s' is not a tuner URL. Expected something like http://172.22.0.99:80", uri)
+        return 2
+
+    query = urllib.parse.urlencode({"uri": uri})
+    try:
+        body = _request(f"{base}/media/grabbers/devices?{query}", method="POST")
+    except RuntimeError as e:
+        log.error("could not register the tuner: %s", e)
+        log.error("check the tuner is up ('make tuner') and answering at %s/discover.json", uri)
+        return 1
+
+    try:
+        root = ET.fromstring(body)
+    except ET.ParseError:
+        log.error("Plex returned a response that is not XML. Is %s a Plex server?", base)
+        return 1
+
+    devices = root.findall(".//Device")
+    if not devices:
+        log.error("Plex accepted the request but registered no device.")
+        log.error("The usual cause is a device id that fails libhdhomerun's checksum; "
+                  "such an id is dropped without a message.")
+        return 1
+
+    for device in devices:
+        log.info("registered %s (%s), %s tuners, status %s",
+                 device.get("model") or "tuner", device.get("uri"),
+                 device.get("tuners"), device.get("status"))
+    log.info("now add the DVR in the Plex app: Settings > Live TV & DVR > Set up Plex DVR")
+    return 0
+
+
 def host_lan_address() -> str | None:
     """Return this machine's LAN IP, or None when it cannot be determined.
 
@@ -297,6 +341,8 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument("--claim", default="", metavar="TOKEN",
                    help="Claim token from https://plex.tv/claim, to use the server from Plex apps.")
     p.add_argument("--no-scan", action="store_true", help="Create the libraries but do not scan.")
+    p.add_argument("--register-tuner", default="", metavar="URI",
+                   help="Tell Plex a tuner is at URI, e.g. http://172.22.0.99:80.")
     p.add_argument("-v", "--verbose", action="store_true")
     return p.parse_args(argv)
 
@@ -319,6 +365,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if ns.status:
         return report_status(ns.plex)
+
+    if ns.register_tuner:
+        return register_tuner(ns.plex, ns.register_tuner)
 
     # Creating sections on the wrong server leaves libraries a person must delete by
     # hand, so confirm the target is the disposable container first. A claim is a

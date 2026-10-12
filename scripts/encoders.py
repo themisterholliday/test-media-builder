@@ -438,20 +438,68 @@ def build_subtitle_external(variant: dict, defaults: dict, sources_dir: Path, ou
     return args
 
 
+# Text subtitle formats, rendered from the ASS source.
+_TEXT_SUB_CODECS = {"srt": "srt", "ass": "ass", "mov_text": "mov_text", "webvtt": "webvtt"}
+
+# Bitmap subtitle formats, which need a seed. ffmpeg converts text to text and bitmap
+# to bitmap, but will not rasterise text into a bitmap format, so these cannot start
+# from the ASS source. `copy` means the seed already is the declared format.
+_BITMAP_SUB_CODECS = {"pgs": "copy", "vobsub": "copy", "dvb_subtitle": "dvbsub", "xsub": "xsub"}
+
+
+def subtitle_seed_for(variant: dict) -> str | None:
+    """Return the seed path a bitmap subtitle variant needs, or None for a text one."""
+    if variant.get("format") in _BITMAP_SUB_CODECS:
+        return variant.get("subtitle_seed")
+    return None
+
+
 def build_subtitle_embedded(variant: dict, defaults: dict, sources_dir: Path, output_path: Path) -> list[str]:
-    """Embed a single subtitle track alongside video + audio."""
+    """Embed a single subtitle track alongside video + audio.
+
+    A text format is rendered from the ASS source. A bitmap format is taken from the
+    variant's `subtitle_seed` instead, because no ffmpeg encoder turns text into
+    bitmaps. Either way the video and audio are built here, so the seed contributes
+    one track and nothing else.
+    """
     width = variant.get("width", defaults["width"])
     height = variant.get("height", defaults["height"])
     video = variant["video"]
     audio = variant["audio"]
-    sub_codec = {"srt": "srt", "ass": "ass", "mov_text": "mov_text", "webvtt": "webvtt"}[variant["format"]]
+    fmt = variant["format"]
+
+    seed = subtitle_seed_for(variant)
+    sub_input_args: list[str] = []
+    if fmt in _BITMAP_SUB_CODECS:
+        if not seed:
+            raise ValueError(
+                f"{variant['name']}: format {fmt!r} is a bitmap subtitle and needs a "
+                f"'subtitle_seed' path. Declare one in config/media_matrix.json."
+            )
+        sub_codec = _BITMAP_SUB_CODECS[fmt]
+        sub_input = Path(seed)
+        if not sub_input.is_absolute():
+            sub_input = sources_dir.parent / seed
+        # A seed is cut from a feature, so its first cue can sit minutes in. The
+        # output is seconds long, which would leave a declared but empty subtitle
+        # track. The offset pulls the first cue back to near zero, measured once and
+        # held valid by the seed's pinned checksum.
+        offset = variant.get("subtitle_seed_offset")
+        if offset is not None:
+            sub_input_args = ["-itsoffset", str(offset)]
+    elif fmt in _TEXT_SUB_CODECS:
+        sub_codec = _TEXT_SUB_CODECS[fmt]
+        sub_input = sources_dir / defaults["source_subtitle"]
+    else:
+        raise ValueError(f"{variant['name']}: unknown subtitle format {fmt!r}")
 
     audio_input_args, _ = _audio_src_for_channels(sources_dir, audio.get("channels", 2), defaults)
 
     args: list[str] = [
         "-i", str(sources_dir / defaults["source_video"]),
         *audio_input_args,
-        "-i", str(sources_dir / defaults["source_subtitle"]),
+        *sub_input_args,
+        "-i", str(sub_input),
         "-map", "0:v:0",
         "-map", "1:a:0",
         "-map", "2:s:0",

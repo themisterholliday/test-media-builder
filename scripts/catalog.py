@@ -41,8 +41,9 @@ SECTION_TITLES = {
     "stream_variants": ("Streams", "Adaptive streaming outputs. These are directories, not files."),
     "edge_cases": ("Edge cases", "Deliberately pathological files that stress specific pipeline "
                                  "behaviour."),
-    "external_variants": ("External", "Media stock ffmpeg cannot author. Three are filled from the "
-                                      "Sol Levante masters; the rest need a user-supplied file."),
+    "external_variants": ("External", "Media ffmpeg cannot author, ingested whole. Three come from "
+                                      "the Sol Levante masters; the rest are acquired by "
+                                      "`make fetch` — see [Source assets](#source-assets)."),
 }
 
 CODEC_LABEL = {
@@ -215,6 +216,8 @@ def build(cfg: dict, manifest: dict | None) -> str:
         out += _section_table(variants, built, defaults)
         out += ["", "---", ""]
 
+    out += _source_assets(cfg)
+
     coverage, _flag_counts = _coverage(cfg)
     out += ["## Coverage", "",
             "What the matrix collectively exercises. Computed from the matrix, so it cannot",
@@ -233,6 +236,43 @@ def build(cfg: dict, manifest: dict | None) -> str:
             f"_Generated {datetime.now(timezone.utc).strftime('%Y-%m-%d')} from "
             f"`config/media_matrix.json`._", ""]
     return "\n".join(out)
+
+
+def _source_assets(cfg: dict) -> list[str]:
+    """Render the source_downloads table: every byte this build did not author."""
+    entries = cfg.get("source_downloads") or []
+    if not entries:
+        return []
+
+    public = [e for e in entries if e.get("url")]
+    local = [e for e in entries if not e.get("url")]
+
+    out = [
+        "## Source assets", "",
+        "What this generator cannot author, and where each piece comes from. "
+        f"{len(public)} of {len(entries)} are public downloads; the rest need a local",
+        "media library. Acquire them with:", "",
+        "```bash",
+        "make fetch                                      # the public ones",
+        "make fetch-local MEDIA_ROOT=/path/to/library    # the rest",
+        "make fetch-check                                # what is still missing",
+        "```", "",
+        "Each asset is checksum-pinned, so an upstream file that changes under us is a "
+        "hard failure rather than a silent change to the corpus.", "",
+        "| Asset | Source | Feeds | Path |",
+        "| --- | --- | --- | --- |",
+    ]
+    for entry in entries:
+        source = f"[download]({entry['url']})" if entry.get("url") else "local library"
+        feeds = ", ".join(f"`{n}`" for n in entry.get("used_by", [])) or "—"
+        out.append(f"| `{entry['name']}` | {source} | {feeds} | `{entry['path']}` |")
+
+    if local:
+        out += ["", "The assets marked *local library* have no canonical public URL. Each "
+                    "declares a `local_hint` — the path it sits at inside a media library — "
+                    "which is what `make fetch-local` resolves.", ""]
+    out += ["", "---", ""]
+    return out
 
 
 def main(argv: list[str] | None = None) -> int:

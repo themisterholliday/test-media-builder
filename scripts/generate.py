@@ -19,6 +19,7 @@ import os
 import platform
 import re
 import shutil
+import subprocess
 import tempfile
 import sys
 from dataclasses import dataclass, field
@@ -37,6 +38,7 @@ from .encoders import (
     build_video,
     codec_family,
     effective_duration,
+    subtitle_seed_for,
 )
 from .ffutil import (
     FFBinaryMissing,
@@ -47,6 +49,7 @@ from .ffutil import (
     ffmpeg_bin,
     ffmpeg_version,
     ffprobe,
+    ffprobe_bin,
     require_binaries,
     require_filters,
     resolve_binary,
@@ -327,8 +330,35 @@ def _verify_contract(plan: Plan, probe: dict) -> list[str]:
     if plan.kind == "subtitle_embedded":
         if len(subtitle_streams) != 1:
             errs.append(f"expected 1 embedded subtitle, got {len(subtitle_streams)}")
+        elif subtitle_seed_for(v):
+            # A seeded track can be declared and still be empty: ffmpeg writes the
+            # stream header whether or not any cue falls inside the output duration.
+            # Only a packet count proves a cue survived.
+            cues = _subtitle_packet_count(_probe_target(plan))
+            if cues == 0:
+                errs.append(
+                    "embedded subtitle track is empty: no cue from "
+                    f"{plan.variant['subtitle_seed']} falls inside the output duration. "
+                    "Adjust 'subtitle_seed_offset' in the matrix."
+                )
 
     return errs
+
+
+def _subtitle_packet_count(path: Path) -> int:
+    """Count packets in the first subtitle stream of a file. Returns 0 on any failure."""
+    try:
+        result = subprocess.run(
+            [ffprobe_bin(), "-v", "error", "-select_streams", "s:0",
+             "-count_packets", "-show_entries", "stream=nb_read_packets",
+             "-of", "csv=p=0", str(path)],
+            capture_output=True, text=True, timeout=120, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as e:
+        log.warning("could not count subtitle packets in %s: %s", path.name, e)
+        return 0
+    value = result.stdout.strip().rstrip(",")
+    return int(value) if value.isdigit() else 0
 
 
 def _codec_family(codec: str) -> str:
@@ -567,9 +597,22 @@ def _execute(plan: Plan, defaults: dict, *, dry_run: bool, force: bool, ffmpeg_v
         if errs:
             return Outcome(plan=plan, status="contract_failed", message="; ".join(errs), probe=probe)
 
-        _write_nfo_for(plan, probe=probe, ffmpeg_cmd=None, ffmpeg_version=ffmpeg_ver,
+        _write_nfo_for(plan, probe=probe, ffmpeg_cmd=None, ffmpeg_ver=ffmpeg_ver,
                        extra_source=src, overlay=defaults.get("overlay"))
         return Outcome(plan=plan, status="generated", probe=probe)
+
+    seed = subtitle_seed_for(plan.variant)
+    if seed:
+        seed_path = Path(seed)
+        if not seed_path.is_absolute():
+            seed_path = ROOT / seed
+        if not seed_path.exists():
+            return Outcome(
+                plan=plan,
+                status="pending_external",
+                message=(f"subtitle seed missing: {seed_path.relative_to(ROOT)}. "
+                         f"Run 'make fetch' to download it."),
+            )
 
     if _should_skip(plan, force=force):
         return Outcome(plan=plan, status="skipped", message="output and nfo already present")
@@ -625,7 +668,7 @@ def _execute(plan: Plan, defaults: dict, *, dry_run: bool, force: bool, ffmpeg_v
             probe=probe,
         )
 
-    _write_nfo_for(plan, probe=probe, ffmpeg_cmd=["ffmpeg", *args], ffmpeg_version=ffmpeg_ver,
+    _write_nfo_for(plan, probe=probe, ffmpeg_cmd=["ffmpeg", *args], ffmpeg_ver=ffmpeg_ver,
                    overlay=defaults.get("overlay"))
     return Outcome(plan=plan, status="generated", ffmpeg_cmd=["ffmpeg", *args], probe=probe)
 
@@ -735,7 +778,7 @@ def _refresh_nfos(plans: list[Plan], defaults: dict, ffmpeg_ver: str) -> int:
             src = Path(plan.variant["source_path"])
             extra = src if src.is_absolute() else ROOT / src
         _write_nfo_for(
-            plan, probe=probe, ffmpeg_cmd=None, ffmpeg_version=ffmpeg_ver,
+            plan, probe=probe, ffmpeg_cmd=None, ffmpeg_ver=ffmpeg_ver,
             extra_source=extra, overlay=defaults.get("overlay"),
         )
         written += 1
@@ -791,12 +834,19 @@ def _print_check(plans: list[Plan]) -> int:
     missing_external: list[str] = []
     for p in plans:
         target = _probe_target(p)
+        # Two ways a variant can be unbuildable for want of a file: the whole thing is
+        # ingested, or one bitmap subtitle track is seeded. Both are the same problem
+        # for anyone reading this report, so both are counted here.
         if p.section == "external":
-            src = Path(p.variant["source_path"])
+            needed = p.variant["source_path"]
+        else:
+            needed = subtitle_seed_for(p.variant)
+        if needed:
+            src = Path(needed)
             if not src.is_absolute():
                 src = ROOT / src
             if not src.exists():
-                missing_external.append(f"  - {p.variant['name']}: {src}")
+                missing_external.append(f"  - {p.variant['name']}: {needed}")
                 continue
         if target.exists() and target.stat().st_size > 0 and p.nfo_path.exists():
             existing += 1
@@ -806,9 +856,12 @@ def _print_check(plans: list[Plan]) -> int:
         entries = by_section.get(section, [])
         sys.stdout.write(f"  {section:>10}: {len(entries)}\n")
     sys.stdout.write(f"already built: {existing}\n")
-    sys.stdout.write(f"pending external samples: {len(missing_external)}\n")
+    sys.stdout.write(f"awaiting a supplied file: {len(missing_external)}\n")
     for line in missing_external:
         sys.stdout.write(line + "\n")
+    if missing_external:
+        sys.stdout.write("\nRun 'make fetch' to download what is public, and\n"
+                         "'make fetch-local MEDIA_ROOT=/path/to/library' for the rest.\n")
     return 0
 
 

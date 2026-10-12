@@ -23,6 +23,171 @@
       "margin_ratio": 0.02
     }
   },
+  "source_downloads": [
+    {
+      "name": "seed_pgs",
+      "path": "sources/external/seed_pgs.sup",
+      "url": "https://streams.videolan.org/samples/sub/BluRay/title03_track2.sup",
+      "license_note": "Raw PGS (Blu-ray Presentation Graphics) bitstream, used only as a subtitle seed. ffmpeg has no PGS encoder, so the bitmaps must come from somewhere; the video they are muxed into is generated here.",
+      "attribution": "VideoLAN streams archive (https://streams.videolan.org/samples/sub/BluRay/).",
+      "used_by": [
+        "h264_mkv_pgs_embedded"
+      ],
+      "sha256": "81119ca0a20d65ffd03765b246b247792995fdac861d432c497f67eef097c7b2"
+    },
+    {
+      "name": "seed_vobsub_idx",
+      "path": "sources/external/seed_vobsub.idx",
+      "url": "https://streams.videolan.org/samples/sub/VOB/X.The.Movie.DVDivX-SChiZO.idx",
+      "license_note": "VobSub index. ffmpeg locates the matching .sub by stem, so this pair must keep the same basename.",
+      "attribution": "VideoLAN streams archive (https://streams.videolan.org/samples/sub/VOB/).",
+      "used_by": [
+        "h264_mkv_vobsub_embedded",
+        "h264_mkv_dvbsub_embedded",
+        "mpeg4_avi_xsub_embedded"
+      ],
+      "sha256": "07feb87437a346c145d4af410399a35196189f677193b689810812335fa2d12b"
+    },
+    {
+      "name": "seed_vobsub_sub",
+      "path": "sources/external/seed_vobsub.sub",
+      "url": "https://streams.videolan.org/samples/sub/VOB/X.The.Movie.DVDivX-SChiZO.sub",
+      "license_note": "VobSub bitmap payload for seed_vobsub_idx.",
+      "attribution": "VideoLAN streams archive (https://streams.videolan.org/samples/sub/VOB/).",
+      "used_by": [
+        "h264_mkv_vobsub_embedded",
+        "h264_mkv_dvbsub_embedded",
+        "mpeg4_avi_xsub_embedded"
+      ],
+      "sha256": "f6365fb7b00e43281c158832c1a12e36f564913d889eb7f426c4f34cf17393d7"
+    },
+    {
+      "name": "vc1_advanced_1080p",
+      "path": "sources/external/vc1_bluray.mkv",
+      "url": "https://streams.videolan.org/benchmark/115_VC-1_8bits_1920x1080_23_976fps.mkv",
+      "local_hint": "all_the_test_media/videolan/benchmark/115_VC-1_8bits_1920x1080_23_976fps.mkv",
+      "license_note": "VC-1 Advanced Profile with four audio tracks and two subtitle tracks. ffmpeg has no VC-1 encoder, so this codec can only be ingested.",
+      "attribution": "VideoLAN streams archive (https://streams.videolan.org/benchmark/).",
+      "used_by": [
+        "external_vc1_bluray"
+      ],
+      "sha256": "a7e59d43d102edae95b3f97a6879ac0887514850aea0456743bad3cfab80f359"
+    },
+    {
+      "name": "dolby_dv_p5_reference",
+      "path": "sources/external/dolby_dv_p5_1080p.mp4",
+      "url": "https://media.developer.dolby.com/DolbyVision_Atmos/mp4/iOS_P5_GlassBlowing2_1920x1080%4059.94fps_15200kbps.mp4",
+      "local_hint": "all_the_test_media/dolby_vision/iOS_P5_GlassBlowing2_1920x1080%4059.94fps_15200kbps.mp4",
+      "license_note": "Dolby's own Dolby Vision Profile 5 reference clip, with an E-AC-3 JOC Atmos track. Published by Dolby for device and player testing.",
+      "attribution": "Dolby Laboratories (https://media.developer.dolby.com/).",
+      "used_by": [
+        "external_dv_p5_reference"
+      ],
+      "sha256": "83a92794bfbc28f9a166ac8c0824b9bc0b27309c192bfa88f1523eab6a732d41"
+    },
+    {
+      "name": "dolby_dv_p81_reference",
+      "path": "sources/external/dolby_dv_p81_1080p.mp4",
+      "url": "https://media.developer.dolby.com/DolbyVision_Atmos/mp4/P81_GlassBlowing2_1920x1080%4059.94fps_15200kbps_fmp4.mp4",
+      "local_hint": "all_the_test_media/dolby_vision/P81_GlassBlowing2_1920x1080%4059.94fps_15200kbps_fmp4.mp4",
+      "license_note": "Dolby's own Dolby Vision Profile 8.1 reference clip, fragmented MP4, with an E-AC-3 JOC Atmos track.",
+      "attribution": "Dolby Laboratories (https://media.developer.dolby.com/).",
+      "used_by": [
+        "external_dv_p81_reference"
+      ],
+      "sha256": "8e86ed6bb71cc71ec0394dad274c335fcfeaaa6801aed3abcea5ee98b6cd1168"
+    },
+    {
+      "name": "dts_hd_ma_51",
+      "path": "sources/external/dts_hd_ma_5_1.mkv",
+      "local_hint": "all_the_test_media/dolby_audio_test_files/DTS-HD MA 5.1.mkv",
+      "license_note": "DTS-HD Master Audio 5.1. No public URL: the DTS and Dolby audio test sets circulate without a canonical download. Supply it from a local library.",
+      "used_by": [
+        "external_dts_hd_ma"
+      ],
+      "sha256": "762c88d0767c8c34c609c3221731e6699d27c0da2db74b088bd0f34cd8c876f4"
+    },
+    {
+      "name": "dts_x_714",
+      "path": "sources/external/dts_x_7_1_4.mkv",
+      "local_hint": "all_the_test_media/dolby_audio_test_files/DTS-X 7.1.4.mkv",
+      "license_note": "DTS:X object audio over a DTS-HD MA 7.1 core. No public URL.",
+      "used_by": [
+        "external_dts_x"
+      ],
+      "sha256": "90427c7f51d1129355d2026dab01c3f9bd4b094321b55eebdf59c5cd3a175fbc"
+    },
+    {
+      "name": "truehd_atmos_714",
+      "path": "sources/external/truehd_atmos.mkv",
+      "local_hint": "all_the_test_media/dolby_audio_test_files/Dolby Atmos TrueHD, E-AC-3 7.1.4.mkv",
+      "license_note": "Dolby TrueHD with Atmos, plus an E-AC-3 JOC track and two AC-3 cores in the same file. No public URL.",
+      "used_by": [
+        "external_truehd_atmos"
+      ],
+      "sha256": "43b3e94fba5572e30ae7d25c42f36920a2efbeb6bdc9380b0803df7a7a88947d"
+    },
+    {
+      "name": "eac3_joc_atmos",
+      "path": "sources/external/eac3_joc_atmos.mp4",
+      "local_hint": "all_the_test_media/dolby_audio_test_files/Dolby Atmos E-AC-3 5.1.2.mp4",
+      "license_note": "E-AC-3 with Joint Object Coding in MP4. No public URL. The Dolby reference clips above carry a JOC track too, if only one source is available.",
+      "used_by": [
+        "external_eac3_joc_atmos"
+      ],
+      "sha256": "892993f69a45fde134702a8a7e65f7a1cea66b54ca9e3d570f2844c9c38dffe9"
+    },
+    {
+      "name": "hdr10_plus_pattern",
+      "path": "sources/external/hdr10plus.mp4",
+      "local_hint": "all_the_test_media/PATTERNS/Black level test/Pure Black 10 000nits cmv4.0 DoVi HDR10plus HDR10.mp4",
+      "license_note": "HDR10+ dynamic metadata (SMPTE ST 2094-40). The local libx265 is built without HDR10_PLUS, so this cannot be generated here. Every small HDR10+ sample found also carries a Dolby Vision RPU; see the variant's note.",
+      "used_by": [
+        "external_hdr10_plus"
+      ],
+      "sha256": "63b11c806903da9ad2d0dc586e24abf89857df984f6bd7aaeec1985134122f42"
+    },
+    {
+      "name": "dv_profile7_fel",
+      "path": "sources/external/dv_profile7_fel.mkv",
+      "local_hint": "all_the_test_media/Hybrid HDR10Plus DV Sample.mkv",
+      "license_note": "Dolby Vision Profile 7, compatibility id 6 \u2014 dual layer, with an enhancement layer and HDR10+ in the same stream. dovi_tool cannot author a dual-layer stream, so Profile 7 can only be ingested.",
+      "used_by": [
+        "external_dolby_vision_p7"
+      ],
+      "sha256": "c2ad3fc7f48a4befaa4df4d8ad9d7ac54d5f4c59ca77b28864f04d2d3acf4337"
+    },
+    {
+      "name": "dv_profile4",
+      "path": "sources/external/dv_profile4.ts",
+      "local_hint": "all_the_test_media/PATTERNS/fix x700 oppo DV TSmuxer bug.ts",
+      "license_note": "Dolby Vision Profile 4 \u2014 dual layer over an SDR base, deprecated and rare. In MPEG-TS, which is where the remaining Profile 4 content lives.",
+      "used_by": [
+        "external_dolby_vision_p4"
+      ],
+      "sha256": "867f08dbe57b429d3c9be6f8461c73ca13b6116a573b9598084993a7983dfbd0"
+    },
+    {
+      "name": "pgs_subtitle_sample",
+      "path": "sources/external/pgs_subtitle.mkv",
+      "local_hint": "all_the_test_media/sub_tests/pgs_subtitles_test.mkv",
+      "license_note": "A whole file carrying PGS, for the case where the subtitle has to match real content rather than our generated video. No public URL.",
+      "used_by": [
+        "external_pgs_subtitle"
+      ],
+      "sha256": "99fdeab942c258d49e93dd543bc0f6595c8915a73ce28228e958e7481b1c2126"
+    },
+    {
+      "name": "vobsub_sample",
+      "path": "sources/external/vobsub.mkv",
+      "local_hint": "all_the_test_media/Stargate.SG-1.S01E09.DVD.mkv",
+      "license_note": "A DVD rip: MPEG-2 576i with VobSub. Exercises the whole DVD-era path at once. No public URL.",
+      "used_by": [
+        "external_vobsub"
+      ],
+      "sha256": "12b1d670b4f3df018ce29d91a32d0ec1a930aaa2fab70808e66a79e994197dae"
+    }
+  ],
   "video_variants": [
     {
       "name": "h264_mp4_baseline",
@@ -593,11 +758,11 @@
         "count": 6,
         "titles": [
           "Cold Open",
-          "Le Générique — Épisode",
-          "日本語のチャプター",
-          "العنوان بالعربية",
-          "Ελληνικά κεφάλαια",
-          "Finale 🎬🍿"
+          "Le G\u00e9n\u00e9rique \u2014 \u00c9pisode",
+          "\u65e5\u672c\u8a9e\u306e\u30c1\u30e3\u30d7\u30bf\u30fc",
+          "\u0627\u0644\u0639\u0646\u0648\u0627\u0646 \u0628\u0627\u0644\u0639\u0631\u0628\u064a\u0629",
+          "\u0395\u03bb\u03bb\u03b7\u03bd\u03b9\u03ba\u03ac \u03ba\u03b5\u03c6\u03ac\u03bb\u03b1\u03b9\u03b1",
+          "Finale \ud83c\udfac\ud83c\udf7f"
         ]
       }
     },
@@ -748,7 +913,7 @@
       "name": "aspect_letterbox_239",
       "uuid": "545b6e37-88cf-5918-b1c4-66531eb34cf5",
       "title": "Aspect: 2.39 Letterboxed In 16:9",
-      "description": "A 2.39 picture padded into a 16:9 coded frame, so the black bars are baked into the pixels. The container reports 16:9 and only the picture is scope — bait for auto-crop logic.",
+      "description": "A 2.39 picture padded into a 16:9 coded frame, so the black bars are baked into the pixels. The container reports 16:9 and only the picture is scope \u2014 bait for auto-crop logic.",
       "container": "mp4",
       "duration_seconds": 20,
       "width": 1920,
@@ -982,7 +1147,7 @@
       "name": "h264_mkv_444_8bit",
       "uuid": "b0b561ee-2135-5227-bbe3-86084bef7b02",
       "title": "H.264 4:4:4 8-bit",
-      "description": "Full chroma resolution — screen capture and mastering workflows.",
+      "description": "Full chroma resolution \u2014 screen capture and mastering workflows.",
       "container": "mkv",
       "duration_seconds": 20,
       "video": {
@@ -1067,7 +1232,7 @@
       "name": "h264_mov_aac",
       "uuid": "f9e57271-6e50-5515-bed5-3a9382ce3fca",
       "title": "H.264 in QuickTime MOV",
-      "description": "QuickTime container — common from Apple capture and editing tools.",
+      "description": "QuickTime container \u2014 common from Apple capture and editing tools.",
       "container": "mov",
       "duration_seconds": 20,
       "video": {
@@ -1523,7 +1688,7 @@
       "name": "audio_pcm_914_bed",
       "uuid": "14f29c57-35d1-5e56-a3ec-4d20c1a21328",
       "title": "PCM 9.1.4 Bed (14-channel Atmos-style bed)",
-      "description": "PCM 16-bit LE 9.1.4 bed (14 channels) in WAV. Representative of a Dolby Atmos 9.1.4 channel-based bed — objects + metadata are proprietary, but the bed itself is just multichannel PCM.",
+      "description": "PCM 16-bit LE 9.1.4 bed (14 channels) in WAV. Representative of a Dolby Atmos 9.1.4 channel-based bed \u2014 objects + metadata are proprietary, but the bed itself is just multichannel PCM.",
       "container": "wav",
       "audio": {
         "codec": "pcm_s16le",
@@ -1601,7 +1766,7 @@
       "name": "audio_alac_stereo",
       "uuid": "05b23e87-403d-5abe-aa51-b0f6f0f5a2dc",
       "title": "ALAC Lossless Stereo",
-      "description": "Apple Lossless in M4A — the Apple-ecosystem counterpart to FLAC.",
+      "description": "Apple Lossless in M4A \u2014 the Apple-ecosystem counterpart to FLAC.",
       "container": "m4a",
       "duration_seconds": 60,
       "audio": {
@@ -1721,6 +1886,122 @@
         "channels": 2,
         "sample_rate": 48000
       }
+    },
+    {
+      "name": "h264_mkv_pgs_embedded",
+      "title": "H.264 MKV with embedded PGS (Blu-ray bitmap)",
+      "description": "H.264 in Matroska with a Presentation Graphics subtitle track copied from a raw .sup bitstream. ffmpeg has no PGS encoder, so the bitmaps are seeded; the video and audio are generated here.",
+      "format": "pgs",
+      "embed": true,
+      "language": "eng",
+      "container": "mkv",
+      "subtitle_seed": "sources/external/seed_pgs.sup",
+      "flags": [
+        "bitmap_subtitle",
+        "seeded"
+      ],
+      "video": {
+        "codec": "libx264",
+        "profile": "high",
+        "pix_fmt": "yuv420p",
+        "bitrate": "3000k",
+        "preset": "medium"
+      },
+      "audio": {
+        "codec": "aac",
+        "bitrate": "192k",
+        "channels": 2,
+        "sample_rate": 48000
+      },
+      "uuid": "b778c62e-aac3-5b07-81be-8b81dca9dafb",
+      "subtitle_seed_offset": -14.974
+    },
+    {
+      "name": "h264_mkv_vobsub_embedded",
+      "title": "H.264 MKV with embedded VobSub (DVD bitmap)",
+      "description": "H.264 in Matroska with a VobSub track copied from a .idx/.sub pair. The DVD-era bitmap subtitle format, still common in older rips.",
+      "format": "vobsub",
+      "embed": true,
+      "language": "eng",
+      "container": "mkv",
+      "subtitle_seed": "sources/external/seed_vobsub.idx",
+      "flags": [
+        "bitmap_subtitle",
+        "seeded"
+      ],
+      "video": {
+        "codec": "libx264",
+        "profile": "high",
+        "pix_fmt": "yuv420p",
+        "bitrate": "3000k",
+        "preset": "medium"
+      },
+      "audio": {
+        "codec": "aac",
+        "bitrate": "192k",
+        "channels": 2,
+        "sample_rate": 48000
+      },
+      "uuid": "d6cdceb5-1094-5cae-ab7b-55506865c331",
+      "subtitle_seed_offset": -102.603
+    },
+    {
+      "name": "h264_mkv_dvbsub_embedded",
+      "title": "H.264 MKV with embedded DVB subtitles",
+      "description": "H.264 in Matroska with a DVB bitmap subtitle track, re-encoded from the VobSub seed. The broadcast bitmap format, which arrives over DVB and ATSC tuners.",
+      "format": "dvb_subtitle",
+      "embed": true,
+      "language": "eng",
+      "container": "mkv",
+      "subtitle_seed": "sources/external/seed_vobsub.idx",
+      "flags": [
+        "bitmap_subtitle",
+        "seeded",
+        "broadcast"
+      ],
+      "video": {
+        "codec": "libx264",
+        "profile": "high",
+        "pix_fmt": "yuv420p",
+        "bitrate": "3000k",
+        "preset": "medium"
+      },
+      "audio": {
+        "codec": "aac",
+        "bitrate": "192k",
+        "channels": 2,
+        "sample_rate": 48000
+      },
+      "uuid": "fe751358-d069-55f1-87ad-4572014cead8",
+      "subtitle_seed_offset": -102.603
+    },
+    {
+      "name": "mpeg4_avi_xsub_embedded",
+      "title": "MPEG-4 ASP AVI with embedded XSUB (DivX bitmap)",
+      "description": "The DivX bitmap subtitle format in AVI, re-encoded from the VobSub seed. Matroska refuses XSUB, so this is the one variant that has to be AVI.",
+      "format": "xsub",
+      "embed": true,
+      "language": "eng",
+      "container": "avi",
+      "subtitle_seed": "sources/external/seed_vobsub.idx",
+      "flags": [
+        "bitmap_subtitle",
+        "seeded",
+        "legacy"
+      ],
+      "video": {
+        "codec": "mpeg4",
+        "pix_fmt": "yuv420p",
+        "bitrate": "2000k"
+      },
+      "audio": {
+        "codec": "libmp3lame",
+        "bitrate": "192k",
+        "channels": 2,
+        "sample_rate": 48000
+      },
+      "uuid": "5d4fb689-738a-5ea0-8bcb-54bcb3101ef1",
+      "subtitle_seed_offset": -102.603
     }
   ],
   "stream_variants": [
@@ -2398,7 +2679,7 @@
       "name": "edge_rotate_180",
       "uuid": "f1bbe552-a69b-58a2-8aeb-d33aa8e690ac",
       "title": "Edge: Rotation Metadata 180",
-      "description": "Display matrix of 180 degrees — upside-down unless the client honours it.",
+      "description": "Display matrix of 180 degrees \u2014 upside-down unless the client honours it.",
       "container": "mp4",
       "duration_seconds": 20,
       "flags": [
@@ -2580,13 +2861,28 @@
         "hdr",
         "dynamic_metadata"
       ],
-      "license_note": "Requires hdr10plus_tool-generated metadata or a licensed sample."
+      "license_note": "Requires hdr10plus_tool-generated metadata or a licensed sample.",
+      "source_download": "hdr10_plus_pattern",
+      "notes": "Every small HDR10+ sample available also carries a Dolby Vision RPU, so a player that prefers DV will report DV, not HDR10+. To get an HDR10+-only file, strip the RPU with `dovi_tool remove`.",
+      "width": 3840,
+      "height": 2160,
+      "video": {
+        "codec": "libx265",
+        "profile": "Main 10",
+        "pix_fmt": "yuv420p10le",
+        "hdr": {
+          "kind": "hdr10_plus",
+          "color_primaries": "bt2020",
+          "color_trc": "smpte2084",
+          "colorspace": "bt2020nc"
+        }
+      }
     },
     {
       "name": "external_dts_hd_ma",
       "uuid": "4b8a504e-7bd1-579e-bb96-006d8376bf9e",
       "title": "DTS-HD Master Audio 5.1",
-      "description": "H.264 in MKV with DTS-HD MA lossless 5.1 track. FFmpeg cannot encode DTS-HD MA — only decode.",
+      "description": "H.264 in MKV with DTS-HD MA lossless 5.1 track. FFmpeg cannot encode DTS-HD MA \u2014 only decode.",
       "source_path": "sources/external/dts_hd_ma_5_1.mkv",
       "container": "mkv",
       "flags": [
@@ -2595,7 +2891,19 @@
         "lossless_audio",
         "5_1"
       ],
-      "license_note": "DTS encoders are proprietary — sample must be obtained from a licensed source."
+      "license_note": "DTS encoders are proprietary \u2014 sample must be obtained from a licensed source.",
+      "source_download": "dts_hd_ma_51",
+      "width": 1920,
+      "height": 1080,
+      "video": {
+        "codec": "libx264",
+        "profile": "High",
+        "pix_fmt": "yuv420p"
+      },
+      "audio": {
+        "codec": "dca",
+        "channels": 6
+      }
     },
     {
       "name": "external_truehd_atmos",
@@ -2611,7 +2919,19 @@
         "lossless_audio",
         "object_audio"
       ],
-      "license_note": "Dolby TrueHD encoder is proprietary — sample must be obtained from a licensed source."
+      "license_note": "Dolby TrueHD encoder is proprietary \u2014 sample must be obtained from a licensed source.",
+      "source_download": "truehd_atmos_714",
+      "width": 1920,
+      "height": 1080,
+      "video": {
+        "codec": "libx264",
+        "profile": "High",
+        "pix_fmt": "yuv420p"
+      },
+      "audio": {
+        "codec": "truehd",
+        "channels": 8
+      }
     },
     {
       "name": "external_eac3_joc_atmos",
@@ -2626,7 +2946,19 @@
         "atmos",
         "object_audio"
       ],
-      "license_note": "Dolby Atmos encoder is proprietary — sample must be obtained from a licensed source."
+      "license_note": "Dolby Atmos encoder is proprietary \u2014 sample must be obtained from a licensed source.",
+      "source_download": "eac3_joc_atmos",
+      "width": 1280,
+      "height": 720,
+      "video": {
+        "codec": "libx264",
+        "profile": "Main",
+        "pix_fmt": "yuv420p"
+      },
+      "audio": {
+        "codec": "eac3",
+        "channels": 6
+      }
     },
     {
       "name": "external_4k_hevc_real_content",
@@ -2667,16 +2999,31 @@
       "name": "external_vc1_bluray",
       "uuid": "8e1596ce-5a50-53d0-ad33-2137be4d4f28",
       "title": "VC-1 Blu-ray sample",
-      "description": "VC-1 (SMPTE 421M) video, typical Blu-ray format. FFmpeg can decode VC-1 but has no VC-1 encoder — sample must be sourced externally.",
-      "source_path": "sources/external/vc1_bluray.m2ts",
-      "container": "m2ts",
+      "description": "VC-1 Advanced Profile, the codec of the Blu-ray era. ffmpeg has a VC-1 decoder but no encoder, so this can only be ingested. Carries four audio tracks (DTS and AC-3, two languages) and two subtitle tracks.",
+      "source_path": "sources/external/vc1_bluray.mkv",
+      "container": "mkv",
       "flags": [
         "external",
         "vc1",
         "legacy_codec",
-        "bluray"
+        "bluray",
+        "nonmonotonic_dts"
       ],
-      "license_note": "FFmpeg has no VC-1 encoder. Sample must be obtained from a licensed source (e.g., Blu-ray rip)."
+      "license_note": "VideoLAN streams archive. Fetched by `make fetch`; see source_downloads entry 'vc1_advanced_1080p'.",
+      "attribution": "VideoLAN streams archive (https://streams.videolan.org/benchmark/).",
+      "width": 1920,
+      "height": 1080,
+      "video": {
+        "codec": "vc1",
+        "profile": "Advanced",
+        "pix_fmt": "yuv420p"
+      },
+      "audio": {
+        "codec": "dca",
+        "channels": 6
+      },
+      "source_download": "vc1_advanced_1080p",
+      "notes": "The audio tracks carry non-monotonic DTS. ffmpeg decodes the file but warns on every affected packet, which is itself worth having in the corpus."
     },
     {
       "name": "external_pgs_subtitle",
@@ -2690,13 +3037,25 @@
         "image_subtitle",
         "pgs"
       ],
-      "license_note": "Requires a real Blu-ray-sourced PGS track. ffmpeg has no PGS encoder and cannot convert text subtitles to bitmap."
+      "license_note": "Requires a real Blu-ray-sourced PGS track. ffmpeg has no PGS encoder and cannot convert text subtitles to bitmap.",
+      "source_download": "pgs_subtitle_sample",
+      "width": 1920,
+      "height": 1080,
+      "video": {
+        "codec": "libx264",
+        "profile": "High",
+        "pix_fmt": "yuv420p"
+      },
+      "audio": {
+        "codec": "truehd",
+        "channels": 6
+      }
     },
     {
       "name": "external_vobsub",
       "uuid": "5a05eca8-b9a5-5a9d-ab2f-f2cab615ca93",
       "title": "External: VobSub DVD Subtitles",
-      "description": "Bitmap VobSub (DVD) subtitle track. Same limitation as PGS — ffmpeg can decode but not author these from text.",
+      "description": "Bitmap VobSub (DVD) subtitle track. Same limitation as PGS \u2014 ffmpeg can decode but not author these from text.",
       "source_path": "sources/external/vobsub.mkv",
       "container": "mkv",
       "flags": [
@@ -2704,7 +3063,175 @@
         "image_subtitle",
         "vobsub"
       ],
-      "license_note": "Requires a real DVD-sourced VobSub track (.idx/.sub muxed into MKV)."
+      "license_note": "Requires a real DVD-sourced VobSub track (.idx/.sub muxed into MKV).",
+      "source_download": "vobsub_sample",
+      "width": 720,
+      "height": 576,
+      "video": {
+        "codec": "mpeg2video",
+        "profile": "Main",
+        "pix_fmt": "yuv420p",
+        "sar": "64/45"
+      },
+      "audio": {
+        "codec": "ac3",
+        "channels": 2
+      },
+      "notes": "PAL anamorphic: 720x576 coded, 16:9 displayed, SAR 64/45. Exercises the DVD-era geometry path as well as the subtitle format."
+    },
+    {
+      "name": "external_dts_x",
+      "title": "DTS:X (7.1.4 objects over a DTS-HD MA core)",
+      "description": "DTS:X object audio carried over a DTS-HD MA 7.1 core. Tests whether a player reports the object format or only the lossless core beneath it.",
+      "source_path": "sources/external/dts_x_7_1_4.mkv",
+      "container": "mkv",
+      "flags": [
+        "external",
+        "dts_x",
+        "object_audio",
+        "lossless_audio"
+      ],
+      "license_note": "No public URL for the DTS test set. Supply from a local media library; see source_downloads entry 'dts_x_714'.",
+      "source_download": "dts_x_714",
+      "width": 1920,
+      "height": 1080,
+      "video": {
+        "codec": "libx264",
+        "profile": "High",
+        "pix_fmt": "yuv420p"
+      },
+      "audio": {
+        "codec": "dca",
+        "channels": 8
+      },
+      "uuid": "dc1b3eb2-35df-5340-bcf4-fb2956104b4a"
+    },
+    {
+      "name": "external_dolby_vision_p7",
+      "title": "Dolby Vision Profile 7 (dual layer, FEL, with HDR10+)",
+      "description": "HEVC with a Dolby Vision base layer, an enhancement layer and an RPU, compatibility id 6. Carries HDR10+ dynamic metadata in the same stream, so a player has three HDR signals to choose between.",
+      "source_path": "sources/external/dv_profile7_fel.mkv",
+      "container": "mkv",
+      "flags": [
+        "external",
+        "dolby_vision",
+        "dv_profile_7",
+        "dual_layer",
+        "hdr",
+        "hdr10_plus"
+      ],
+      "license_note": "dovi_tool cannot author a dual-layer stream, so Profile 7 can only be ingested. See source_downloads entry 'dv_profile7_fel'.",
+      "source_download": "dv_profile7_fel",
+      "width": 3840,
+      "height": 2160,
+      "video": {
+        "codec": "libx265",
+        "profile": "Main 10",
+        "pix_fmt": "yuv420p10le",
+        "hdr": {
+          "kind": "dolby_vision",
+          "color_primaries": "bt2020",
+          "color_trc": "smpte2084",
+          "colorspace": "bt2020nc"
+        }
+      },
+      "audio": {
+        "codec": "truehd",
+        "channels": 6
+      },
+      "notes": "Measured: dv_profile=7, compat id 6, el_present_flag=1, rpu_present_flag=1.",
+      "uuid": "517dc88e-f11e-5289-abe7-3cd2ca83e8cb"
+    },
+    {
+      "name": "external_dolby_vision_p4",
+      "title": "Dolby Vision Profile 4 (dual layer over an SDR base)",
+      "description": "Profile 4, compatibility id 0: a dual-layer stream over an SDR base layer. Deprecated, rare, and the reason some players still carry a separate code path. In MPEG-TS.",
+      "source_path": "sources/external/dv_profile4.ts",
+      "container": "ts",
+      "flags": [
+        "external",
+        "dolby_vision",
+        "dv_profile_4",
+        "dual_layer",
+        "deprecated"
+      ],
+      "license_note": "No encoder can author Profile 4. See source_downloads entry 'dv_profile4'.",
+      "source_download": "dv_profile4",
+      "width": 3840,
+      "height": 2160,
+      "video": {
+        "codec": "libx265",
+        "profile": "Main 10",
+        "pix_fmt": "yuv420p10le"
+      },
+      "audio": {
+        "codec": "eac3",
+        "channels": 6
+      },
+      "notes": "Measured: dv_profile=4, compat id 0. The container carries no colour tags, so none are declared.",
+      "uuid": "f3f2dca1-fc5a-5fce-8a6a-ed53c03fdd96"
+    },
+    {
+      "name": "external_dv_p5_reference",
+      "title": "Dolby Vision Profile 5 reference (Dolby, with E-AC-3 JOC)",
+      "description": "Dolby's own Profile 5 clip. Independent of the Profile 5 asset authored here from Sol Levante, so a failure can be traced to the authoring rather than to the profile. Also carries an E-AC-3 JOC Atmos track.",
+      "source_path": "sources/external/dolby_dv_p5_1080p.mp4",
+      "container": "mp4",
+      "flags": [
+        "external",
+        "dolby_vision",
+        "dv_profile_5",
+        "hdr",
+        "eac3_joc",
+        "reference"
+      ],
+      "license_note": "Published by Dolby for player testing. Fetched by `make fetch`.",
+      "source_download": "dolby_dv_p5_reference",
+      "width": 1920,
+      "height": 1080,
+      "video": {
+        "codec": "libx265",
+        "profile": "Main 10",
+        "pix_fmt": "yuv420p10le"
+      },
+      "audio": {
+        "codec": "eac3",
+        "channels": 6
+      },
+      "attribution": "Dolby Laboratories (https://media.developer.dolby.com/).",
+      "uuid": "1bf9e156-4b98-5f5a-b174-b70e4de003c0"
+    },
+    {
+      "name": "external_dv_p81_reference",
+      "title": "Dolby Vision Profile 8.1 reference (Dolby, fragmented MP4)",
+      "description": "Dolby's own Profile 8.1 clip in fragmented MP4, with an E-AC-3 JOC Atmos track. Fragmented MP4 is its own ingest path, which this exercises alongside the profile.",
+      "source_path": "sources/external/dolby_dv_p81_1080p.mp4",
+      "container": "mp4",
+      "flags": [
+        "external",
+        "dolby_vision",
+        "dv_profile_8_1",
+        "hdr",
+        "hdr10_base",
+        "fragmented_mp4",
+        "eac3_joc",
+        "reference"
+      ],
+      "license_note": "Published by Dolby for player testing. Fetched by `make fetch`.",
+      "source_download": "dolby_dv_p81_reference",
+      "width": 1920,
+      "height": 1080,
+      "video": {
+        "codec": "libx265",
+        "profile": "Main 10",
+        "pix_fmt": "yuv420p10le"
+      },
+      "audio": {
+        "codec": "eac3",
+        "channels": 6
+      },
+      "attribution": "Dolby Laboratories (https://media.developer.dolby.com/).",
+      "uuid": "034cb5d6-7e1c-5e88-a924-9d8d52f9b7a2"
     }
   ],
   "master_variants": [

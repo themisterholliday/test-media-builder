@@ -2,11 +2,15 @@ PY ?= python3
 ROOT := $(shell pwd)
 JOBS ?= 1
 
-.PHONY: help bootstrap generate check clean clean-generated dry-run force rebuild verify manifest thumbs library ids catalog plexmatch servers servers-down servers-reset plex-reset-library plex-claim plex-token plex-status plex-setup servercheck all
+.PHONY: help bootstrap fetch fetch-check fetch-local generate check clean clean-generated dry-run force rebuild verify manifest thumbs library ids catalog plexmatch servers servers-down servers-reset plex-reset-library plex-claim plex-token plex-status plex-setup servercheck all
 
 help:
 	@echo "Targets:"
 	@echo "  bootstrap       synthesize missing source assets under sources/"
+	@echo "  fetch           download the public source assets the matrix declares"
+	@echo "  fetch-check     report which source assets are present and which are not"
+	@echo "  fetch-local     link source assets from a local media library"
+	@echo "                  (make fetch-local MEDIA_ROOT=/path/to/library)"
 	@echo "  generate        build the full matrix (skips existing outputs)"
 	@echo "  force           rebuild every matrix entry from scratch"
 	@echo "  rebuild         clean generated/ then build the full matrix"
@@ -38,6 +42,27 @@ help:
 
 bootstrap:
 	$(PY) -m scripts.generate --bootstrap --check
+
+# Acquire what this generator cannot author: bitmap subtitle seeds, and whole files
+# in codecs ffmpeg has no encoder for. `fetch` uses the network, `fetch-local` does
+# not. Both are safe to re-run; an asset already in place is left alone.
+fetch:
+	$(PY) -m scripts.fetch $(if $(PIN),--pin) $(if $(ONLY),--only $(ONLY)) $(if $(FORCE),--force)
+
+# A report, not a gate: a missing asset is normal, so this does not fail the build.
+# Call `python3 -m scripts.fetch --check` directly for an exit code.
+fetch-check:
+	-@$(PY) -m scripts.fetch --check
+
+# Link the assets that have no public URL out of a private media library. The root
+# is also read from $$TESTLIB_MEDIA_ROOT, so it can be set once per shell.
+fetch-local:
+ifndef MEDIA_ROOT
+	@test -n "$$TESTLIB_MEDIA_ROOT" || { \
+	  echo "usage: make fetch-local MEDIA_ROOT=/path/to/media/library"; \
+	  echo "   or: export TESTLIB_MEDIA_ROOT=/path/to/media/library"; exit 1; }
+endif
+	$(PY) -m scripts.fetch --no-download $(if $(MEDIA_ROOT),--link-from '$(MEDIA_ROOT)') $(if $(PIN),--pin) $(if $(FORCE),--force)
 
 generate:
 	$(PY) -m scripts.generate --jobs $(JOBS) $(if $(FORCE),--force) $(if $(DURATION),--duration $(DURATION)) $(if $(ONLY),--only $(ONLY)) $(if $(VARIANT),--variant $(VARIANT))

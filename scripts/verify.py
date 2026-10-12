@@ -66,6 +66,11 @@ class VariantReport:
     warnings: list[str] = field(default_factory=list)
 
 
+# Containers with no per-stream language field. The muxer silently drops the tag, so
+# asserting it would fail on a correct file.
+_NO_STREAM_LANGUAGE = frozenset({"avi"})
+
+
 def _decode_smoke(path: Path, timeout: int) -> tuple[bool, str]:
     """Decode-only pass. Returns (ok, stderr) — ok means rc==0 and empty stderr."""
     cmd = [ffmpeg_bin(), "-hide_banner", "-v", "error", "-nostdin", "-i", str(path), "-f", "null", "-"]
@@ -221,7 +226,12 @@ def _bitstream_assertions(plan, probe: dict, report: VariantReport) -> None:
 
     if plan.kind == "subtitle_embedded":
         expected_lang = v.get("language")
-        if expected_lang:
+        if expected_lang and v.get("container") in _NO_STREAM_LANGUAGE:
+            # AVI has no per-stream language field, so the muxer drops the tag. The
+            # declaration still says which language the cues are in; the container
+            # simply cannot carry it.
+            report.checks["subtitle_embedded.language_unsupported_by_container"] = True
+        elif expected_lang:
             subs = [s for s in probe.get("streams", []) if s.get("codec_type") == "subtitle"]
             languages = [(s.get("tags") or {}).get("language") for s in subs]
             ok = expected_lang in languages
@@ -509,7 +519,14 @@ def _verify_plan(plan, skip_decode: bool = False, decode_timeout: int = _DECODE_
         else:
             ok, err = _decode_smoke(target, decode_timeout)
         report.checks["decode"] = ok
-        if not ok:
+        if not ok and "nonmonotonic_dts" in flags:
+            # The file decodes; the null muxer is complaining about timestamps the
+            # input already carried. That is the property the variant exists to
+            # provide, so it is recorded rather than failed.
+            report.checks["decode"] = True
+            report.checks["decode_warnings_expected"] = True
+            report.warnings.append(f"decode warnings, expected for this variant: {err[:400]}")
+        elif not ok:
             report.errors.append(f"decode: {err}")
     elif "truncated" in flags:
         report.checks["decode_skipped_truncated"] = True

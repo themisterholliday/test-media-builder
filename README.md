@@ -52,7 +52,29 @@ Each of these is a complete task. Run them from the repo root.
 make all
 ```
 
-Sources are synthesized if you have not supplied your own. Nothing is downloaded.
+Sources are synthesized if you have not supplied your own. Nothing is downloaded, and
+every variant ffmpeg can author is built.
+
+### Add the media ffmpeg cannot author
+
+Nineteen assets exist that no encoder here can produce: bitmap subtitle bitstreams, and
+whole files in codecs ffmpeg decodes but cannot write — DTS-HD MA, TrueHD Atmos, VC-1,
+Dolby Vision Profiles 4 and 7. Six have a public URL. The rest have to come from a media
+library you already hold.
+
+```bash
+make fetch                                      # download the public ones (~1.1 GB)
+make fetch-local MEDIA_ROOT=/path/to/library    # link the rest, no copy
+make fetch-check                                # see what is still missing
+make generate && make verify && make manifest && make library
+```
+
+`fetch-local` makes symlinks and the build hardlinks through them, so a 1.4 GB sample is
+ingested without a second copy on disk. Set `TESTLIB_MEDIA_ROOT` to skip `MEDIA_ROOT=`
+every time.
+
+Every asset is checksum-pinned on first acquisition. A later run that finds different
+bytes fails rather than quietly changing the corpus.
 
 ### Rebuild one variant after changing it
 
@@ -143,12 +165,19 @@ The full 5-minute build takes a few minutes with `JOBS=4`. A 30-second build com
 | video     | 53    | **Chapters (4)** · H.264 / HEVC / AV1 / VP9 / **MPEG-2** / **MPEG-4 ASP (Xvid)** / **WMV2** · in MP4/MKV/TS/WebM/**AVI**/**WMV** · 8-bit + 10-bit · SDR / HDR10 / HLG · 24/25/29.97/30/60 fps · 16:9 / 4:3 / 9:16 / **anamorphic 64:45** · **progressive + 1080i + 480i interlaced** |
 | masters   | 6     | **Real content** (Netflix *Sol Levante*, CC BY 4.0) at 4K: HDR10 2160p + 1080p · **HLG** · **Dolby Vision P8.4** · **AV1 HDR10** · **VP9 P2 HDR10** · SDR — ingested, never re-encoded                                                                    |
 | audio     | 18    | AAC (mono/stereo/5.1/**7.1**), AC-3 5.1, E-AC-3 5.1, MP3, Opus, FLAC (16-bit + **24-bit 96k / 192k**), PCM (s16le stereo → **s24le stereo** → **7.1.4** → **9.1.4 Atmos-style bed**), **MP2**, **WMA2**                                                           |
-| subtitles | 6     | External SRT / WebVTT / ASS · embedded SRT / ASS / mov_text                                                                                                                                                                                                       |
+| subtitles | 10    | External SRT / WebVTT / ASS · embedded SRT / ASS / mov_text · **bitmap: PGS, VobSub, DVB, XSUB** (seeded — see below)                                                                                                                                             |
 | streams   | 2     | HLS (m3u8 + TS segments) · DASH (mpd + fMP4 chunks)                                                                                                                                                                                                               |
 | edge      | 25    | No audio, audio-only, multi-audio, multi-subtitle (with forced flag), VFR, broken PTS, low/high bitrate, Annex B, AVCC, fragmented MP4, missing metadata, edit list, truncated file, **6 malformed-chapter cases**                                                                               |
-| external  | 10    | **3 now filled** from the Sol Levante masters (DV P5, DV P8.1, real 4K HEVC HDR10). 7 still awaiting a drop-in: HDR10+, DTS-HD MA, TrueHD/Atmos, E-AC-3 JOC, VC-1 Blu-ray, PGS, VobSub                                                                    |
+| external  | 15    | Ingested whole. 3 from the Sol Levante masters (DV P5, DV P8.1, real 4K HEVC HDR10) · HDR10+ · DTS-HD MA · **DTS:X** · TrueHD/Atmos · E-AC-3 JOC · VC-1 · PGS · VobSub · **DV Profile 7 (dual-layer FEL)** · **DV Profile 4** · **Dolby's own P5 and P8.1 reference clips**            |
 
-**Total: 120 declared variants · 113 built (104 ffmpeg-synthesizable + 9 ingested real-content) · 7 external slots still awaiting user-supplied files.**
+**Total: 129 declared variants, all buildable.** 110 are authored by ffmpeg from
+synthetic sources, 4 more are authored here around a seeded subtitle track, and 15 are
+ingested because no encoder can produce them.
+
+Nothing in the corpus is hand-placed any more. `make fetch` downloads what has a public
+URL; `make fetch-local` links the rest out of a media library you already have. See
+[Source assets](docs/CATALOG.md#source-assets) for the full table of where each
+acquired byte comes from.
 
 See [docs/CATALOG.md](docs/CATALOG.md) for every variant with its id, codec and build status.
 
@@ -363,7 +392,7 @@ All three are hardlinks into `generated/`, so the extra trees cost no disk.
 
 ### Reach
 
-**106 of 113 built variants are playable from Plex apps.** The seven that are not:
+**122 of 129 built variants are playable from Plex apps.** The seven that are not:
 
 | Variant | Why |
 | --- | --- |
@@ -513,7 +542,7 @@ If the configured duration changes (via `--duration` or editing `config/media_ma
 
 To use real sources, drop files with those exact names into `sources/` before running the generator — it only synthesizes what's missing (and won't overwrite a real file unless its duration deviates from the target).
 
-External samples (DV, HDR10+, DTS-HD, etc.) go under `sources/external/`. See [docs/CATALOG.md](docs/CATALOG.md#external-10) for the seven pre-declared slots and how to add new ones.
+Media this generator cannot author — bitmap subtitle seeds, and whole files in codecs ffmpeg cannot write — goes under `sources/external/`. `make fetch` and `make fetch-local` put it there. See [Source assets](docs/CATALOG.md#source-assets) for every asset and where it comes from, and [sources/external/EXTERNAL_SAMPLES.md](sources/external/EXTERNAL_SAMPLES.md) for how to add a slot.
 
 ## What each script produces
 

@@ -44,6 +44,13 @@ How the media test library is built, what each component does, and how to extend
   - [Add a stream variant](#add-a-stream-variant)
 - [Adding a new edge-case handler](#adding-a-new-edge-case-handler)
 - [External-sample workflow](#external-sample-workflow)
+  - [Three ways a variant gets its bytes](#three-ways-a-variant-gets-its-bytes)
+  - [Acquiring](#acquiring)
+  - [Checksum pinning](#checksum-pinning)
+  - [Licensing](#licensing)
+  - [The shape of a declaration](#the-shape-of-a-declaration)
+  - [What the pipeline does](#what-the-pipeline-does)
+  - [Adding a slot](#adding-a-slot)
 - [On-screen overlay](#on-screen-overlay)
 - [Custom source imagery](#custom-source-imagery)
 - [Cadence, chroma and colour](#cadence-chroma-and-colour)
@@ -354,8 +361,8 @@ An ingested file is not built here, so its matrix declaration is the only thing
 asserting the drop-in is the file the matrix means. `_verify_contract` therefore
 checks the `external` kind as strictly as a built variant: codec family, pixel
 format, width, height, the colour signalling in `video.hdr`, and audio channel
-count. Each field is checked only when declared, so the seven unfilled external
-slots stay valid while carrying no assertions.
+count. Each field is checked only when declared, so a slot added before its file
+arrives stays valid while carrying no assertions.
 
 ### Attribution
 
@@ -993,41 +1000,124 @@ Edge cases often need a special ffmpeg invocation that doesn't fit `build_video`
 
 ## External-sample workflow
 
-The slots and their current state are listed in
-[CATALOG.md](CATALOG.md#external-10). Three are filled from the Sol Levante masters;
-the rest need a user-supplied file dropped into `sources/external/`.
+Most of the corpus is authored by ffmpeg from synthetic sources. Nineteen assets are not,
+because no encoder available here can produce them. They are declared in
+`config/media_matrix.json` under `source_downloads`, and acquired by `scripts/fetch.py`.
 
-**Licensing.** `sources/external/` is gitignored. Assume anything placed there carries
-redistribution constraints and keep it out of any public repository. The exception in
-kind, not in handling, is *Sol Levante*: it is CC BY 4.0 and **may** be redistributed
-with attribution, but it is still kept out of git because the files total 4.3 GB. Any
-variant declaring an `attribution` field has it copied into `manifest.json` and into
-every `.nfo`, which is what satisfies the licence wherever an asset travels.
+### Three ways a variant gets its bytes
 
+| Kind | What ffmpeg does | Example |
+| --- | --- | --- |
+| **Generated** | Authors the whole file from `sources/` | `h264_mp4_baseline` |
+| **Seeded** | Authors video and audio, copies one subtitle track from a seed | `h264_mkv_pgs_embedded` |
+| **Ingested** | Nothing — the file is hardlinked in whole | `external_dts_hd_ma` |
 
-External variants live in `config/media_matrix.json` under `external_variants`:
+Seeding exists because of one ffmpeg limitation: *subtitle encoding is currently only
+possible from text to text or bitmap to bitmap*. There is no path from the ASS source to
+a PGS or VobSub bitmap. So the bitmaps come from a small published bitstream, and
+everything around them is still generated — our video, our audio, our overlay, our
+duration, our identifier in the filename.
+
+A seed's first cue usually sits minutes into whatever it was cut from, while the output is
+seconds long. `subtitle_seed_offset` shifts the seed's timestamps so the first cue lands
+just after the start. It is a measured number, held valid by the seed's pinned checksum,
+and the contract check fails the build if no cue survives — a declared-but-empty subtitle
+track is otherwise completely silent.
+
+### Acquiring
+
+```bash
+make fetch                                      # everything with a public URL
+make fetch-local MEDIA_ROOT=/path/to/library    # everything without one
+make fetch-check                                # what is present, what is not
+```
+
+Six assets have a public URL. The rest — the Dolby and DTS audio test sets, the Dolby
+Vision pattern files, the DVD rip — have no canonical download, so they carry a
+`local_hint` instead: the path they sit at inside a media library. `fetch-local` resolves
+hints against `MEDIA_ROOT` (or `$TESTLIB_MEDIA_ROOT`) and makes a symlink.
+
+Symlinks matter. `_ingest` hardlinks, and `os.link` follows a symlink to link the real
+inode, so `sources/external/`, `generated/external/` and the media library all name the
+same bytes. Ingesting 5.9 GB of samples costs nothing beyond what the library already
+holds.
+
+### Checksum pinning
+
+An asset is pinned on first acquisition:
+
+```bash
+make fetch PIN=1            # record the observed sha256 into the matrix
+```
+
+Afterwards a different digest is a hard failure. Upstream test-media servers do replace
+files in place, and without a pin that would alter the corpus with no diff to show for it.
+An unpinned asset is a warning, not an error, so a new slot can be added before anyone has
+decided the bytes are final.
+
+### Licensing
+
+`sources/external/` is gitignored. Assume anything placed there carries redistribution
+constraints and keep it out of any public repository. Two exceptions in kind, not in
+handling: *Sol Levante* is CC BY 4.0, and Dolby publishes its reference clips for player
+testing. Both are still kept out of git, on size. Any variant declaring an `attribution`
+field has it copied into `manifest.json` and into every `.nfo`, which is what satisfies the
+licence wherever an asset travels.
+
+### The shape of a declaration
+
+A source asset:
 
 ```json
 {
-  "name": "external_my_sample",
-  "title": "...",
-  "description": "...",
-  "source_path": "sources/external/my_sample.mkv",
-  "container": "mkv",
-  "flags": ["external", "my_tag"],
-  "license_note": "Where it came from; redistribution constraints."
+  "name": "dts_x_714",
+  "path": "sources/external/dts_x_7_1_4.mkv",
+  "url": "https://...",
+  "local_hint": "all_the_test_media/dolby_audio_test_files/DTS-X 7.1.4.mkv",
+  "sha256": "...",
+  "license_note": "Where it came from; redistribution constraints.",
+  "used_by": ["external_dts_x"]
 }
 ```
 
-The pipeline:
+The variant that consumes it:
+
+```json
+{
+  "name": "external_dts_x",
+  "source_path": "sources/external/dts_x_7_1_4.mkv",
+  "source_download": "dts_x_714",
+  "container": "mkv",
+  "flags": ["external", "dts_x"],
+  "width": 1920, "height": 1080,
+  "video": {"codec": "libx264", "profile": "High", "pix_fmt": "yuv420p"},
+  "audio": {"codec": "dca", "channels": 8}
+}
+```
+
+### What the pipeline does
 
 1. Looks for the file at `source_path`.
-2. If missing: reports `pending_external` status, writes nothing, continues.
-3. If present: copies to `generated/external/<name>.<ext>`, probes, verifies the contract, writes a sibling NFO whose `<source>` block records `sha256` of the external file + the `license_note`.
+2. If missing: reports `pending_external`, writes nothing, continues. `make check` lists it
+   under *awaiting a supplied file* and points at `make fetch`.
+3. If present: hardlinks to `generated/external/<name>.<ext>`, probes, verifies the
+   contract, writes a sibling NFO whose `<source>` block records the file's `sha256` and
+   its `license_note`.
 
-Contract verification for externals is looser — we don't typically declare exact codec fields for them (their whole point is that ffmpeg doesn't know what to expect). The probe output still drives the NFO so metadata _is_ recorded, just not asserted.
+Contract checking is stricter for ingested files than for generated ones, not looser. A
+generated variant's declared width is the content area before `pad_to`, so declaration and
+output legitimately differ. An ingested file is not built here, so its declaration is the
+only thing asserting the drop-in is the file the matrix means: geometry, colour signalling
+and audio channel count are all asserted. Three real mismatches were caught this way while
+the slots were being filled.
 
-To add a new external slot: drop the file in `sources/external/`, append an `external_variants` entry, run `make check` to confirm it appears, then `make generate --only external`. Document the slot in `sources/external/EXTERNAL_SAMPLES.md`.
+### Adding a slot
+
+1. Add a `source_downloads` entry with a `path`, and a `url` or `local_hint`.
+2. Add the variant, with `source_download` naming that entry.
+3. `make ids` — mints the UUID. Everything downstream refuses to run until it exists.
+4. `make fetch` or `make fetch-local`, then `make fetch PIN=1`.
+5. `make generate ONLY=external`, then `make catalog`.
 
 ---
 
